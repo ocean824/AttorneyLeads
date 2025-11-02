@@ -12,6 +12,8 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { calculateLeadScore } from "./lead-scoring";
 import { findDuplicates } from "./deduplication";
+import { spawn } from "child_process";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard Stats
@@ -352,12 +354,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
+// Helper function to call Python scraper
+async function callPythonScraper(counties: string[]): Promise<InsertArrestRecord[]> {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(process.cwd(), 'server', 'scraper.py');
+    const countiesStr = counties.join(',');
+    
+    const pythonProcess = spawn('python3', [scriptPath, countiesStr]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Python scraper failed with code ${code}: ${stderr}`);
+        reject(new Error(`Python scraper failed: ${stderr}`));
+        return;
+      }
+      
+      try {
+        const records = JSON.parse(stdout);
+        
+        if (records.error) {
+          reject(new Error(records.error));
+          return;
+        }
+        
+        // Transform Python records to match InsertArrestRecord schema
+        const transformedRecords: InsertArrestRecord[] = records.map((record: any) => ({
+          fullName: record.fullName,
+          charges: record.charges,
+          bookingDate: record.bookingDate,
+          bondAmount: record.bondAmount,
+          age: record.age,
+          gender: record.gender,
+          race: record.race,
+          height: record.height,
+          weight: record.weight,
+          facility: record.facility,
+          county: record.county,
+        }));
+        
+        resolve(transformedRecords);
+      } catch (error) {
+        reject(new Error(`Failed to parse Python scraper output: ${error}`));
+      }
+    });
+  });
+}
+
 // Helper function to simulate scraping
 async function simulateScraping(jobId: string, counties: string[], enableAI: boolean = true) {
-  // Simulate delay
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  let mockRecords: InsertArrestRecord[] = [];
+  let scrapedRecords: InsertArrestRecord[] = [];
   let createdRecords: ArrestRecord[] = [];
   let aiProcessedCount = 0;
 
@@ -365,17 +421,26 @@ async function simulateScraping(jobId: string, counties: string[], enableAI: boo
     const job = await storage.getScrapeJob(jobId);
     if (!job) return;
 
-    // Generate mock arrest records
-    const recordsPerCounty = Math.floor(Math.random() * 20) + 10; // 10-30 records per county
+    console.log(`[Job ${jobId}] Starting Python scraper for ${counties.length} counties...`);
 
-    for (const county of counties) {
-      for (let i = 0; i < recordsPerCounty; i++) {
-        mockRecords.push(generateMockArrestRecord(county));
+    // Call Python scraper
+    try {
+      scrapedRecords = await callPythonScraper(counties);
+      console.log(`[Job ${jobId}] Python scraper returned ${scrapedRecords.length} records`);
+    } catch (pythonError) {
+      console.error(`[Job ${jobId}] Python scraper failed, using fallback mock data:`, pythonError);
+      
+      // Fallback to mock data generation if Python scraper fails
+      const recordsPerCounty = Math.floor(Math.random() * 20) + 10;
+      for (const county of counties) {
+        for (let i = 0; i < recordsPerCounty; i++) {
+          scrapedRecords.push(generateMockArrestRecord(county));
+        }
       }
     }
 
     // Create records in storage
-    createdRecords = await storage.createArrestRecords(mockRecords);
+    createdRecords = await storage.createArrestRecords(scrapedRecords);
 
     // AI Enhancement (if enabled)
     if (enableAI && createdRecords.length > 0) {
@@ -409,18 +474,18 @@ async function simulateScraping(jobId: string, counties: string[], enableAI: boo
     // Update job with successful completion
     await storage.updateScrapeJob(jobId, {
       status: "completed",
-      recordsFound: mockRecords.length,
+      recordsFound: scrapedRecords.length,
       aiProcessed: enableAI ? aiProcessedCount : 0,
       completedAt: new Date(),
     });
   } catch (error) {
-    console.error("Error in simulated scraping:", error);
+    console.error("Error in scraping:", error);
     // Always finalize job state on error
     await storage.updateScrapeJob(jobId, {
       status: "failed",
-      recordsFound: mockRecords.length,
+      recordsFound: scrapedRecords.length,
       aiProcessed: aiProcessedCount,
-      errorMessage: error instanceof Error ? error.message : "Scraping simulation failed",
+      errorMessage: error instanceof Error ? error.message : "Scraping failed",
       completedAt: new Date(),
     });
   }

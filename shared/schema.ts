@@ -19,7 +19,7 @@ export const arrestRecords = pgTable("arrest_records", {
   age: integer("age"),
   gender: text("gender"),
   race: text("race"),
-  scrapedDate: text("scraped_date").notNull(),
+  scrapedDate: text("scraped_date").default(sql`CURRENT_DATE::text`).notNull(),
   sourceUrl: text("source_url"),
   rawData: text("raw_data"),
   crmContactId: text("crm_contact_id"),
