@@ -5,8 +5,12 @@ import {
   type InsertScrapeJob,
   type CrmSyncLog,
   type InsertCrmSyncLog,
+  arrestRecords,
+  scrapeJobs,
+  crmSyncLog,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, gte, lte, or, like, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Arrest Records
@@ -42,17 +46,7 @@ export interface IStorage {
   getTotalExportsCount(): Promise<number>;
 }
 
-export class MemStorage implements IStorage {
-  private arrestRecords: Map<string, ArrestRecord>;
-  private scrapeJobs: Map<string, ScrapeJob>;
-  private crmSyncLogs: Map<string, CrmSyncLog>;
-
-  constructor() {
-    this.arrestRecords = new Map();
-    this.scrapeJobs = new Map();
-    this.crmSyncLogs = new Map();
-  }
-
+export class DbStorage implements IStorage {
   // Arrest Records Methods
   async getArrestRecords(filters?: {
     county?: string;
@@ -62,129 +56,146 @@ export class MemStorage implements IStorage {
     page?: number;
     pageSize?: number;
   }): Promise<{ records: ArrestRecord[]; total: number }> {
-    let records = Array.from(this.arrestRecords.values());
+    const conditions = [];
 
-    // Apply filters
     if (filters?.county) {
-      records = records.filter((r) => r.county === filters.county);
+      conditions.push(eq(arrestRecords.county, filters.county));
     }
     if (filters?.dateFrom) {
-      records = records.filter(
-        (r) => new Date(r.bookingDate) >= new Date(filters.dateFrom!)
-      );
+      conditions.push(gte(arrestRecords.bookingDate, filters.dateFrom));
     }
     if (filters?.dateTo) {
-      records = records.filter(
-        (r) => new Date(r.bookingDate) <= new Date(filters.dateTo!)
-      );
+      conditions.push(lte(arrestRecords.bookingDate, filters.dateTo));
     }
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      records = records.filter(
-        (r) =>
-          r.fullName.toLowerCase().includes(searchLower) ||
-          r.inmateId?.toLowerCase().includes(searchLower) ||
-          r.charges.toLowerCase().includes(searchLower)
+      const searchLower = `%${filters.search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          sql`LOWER(${arrestRecords.fullName}) LIKE ${searchLower}`,
+          sql`LOWER(${arrestRecords.inmateId}) LIKE ${searchLower}`,
+          sql`LOWER(${arrestRecords.charges}) LIKE ${searchLower}`
+        )!
       );
     }
 
-    const total = records.length;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Sort by booking date (newest first)
-    records.sort(
-      (a, b) =>
-        new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()
-    );
+    // Get total count
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(arrestRecords)
+      .where(whereClause);
 
-    // Apply pagination
+    // Get paginated records
     const page = filters?.page || 1;
     const pageSize = filters?.pageSize || 20;
-    const start = (page - 1) * pageSize;
-    const paginatedRecords = records.slice(start, start + pageSize);
+    const offset = (page - 1) * pageSize;
 
-    return { records: paginatedRecords, total };
+    const records = await db
+      .select()
+      .from(arrestRecords)
+      .where(whereClause)
+      .orderBy(desc(arrestRecords.bookingDate))
+      .limit(pageSize)
+      .offset(offset);
+
+    return { records, total: count };
   }
 
   async getArrestRecord(id: string): Promise<ArrestRecord | undefined> {
-    return this.arrestRecords.get(id);
+    const [record] = await db
+      .select()
+      .from(arrestRecords)
+      .where(eq(arrestRecords.id, id))
+      .limit(1);
+
+    return record;
   }
 
   async createArrestRecord(
     insertRecord: InsertArrestRecord
   ): Promise<ArrestRecord> {
-    const id = randomUUID();
-    const record: ArrestRecord = {
-      ...insertRecord,
-      id,
-      createdAt: new Date(),
-    };
-    this.arrestRecords.set(id, record);
+    const [record] = await db
+      .insert(arrestRecords)
+      .values(insertRecord)
+      .returning();
+
     return record;
   }
 
   async createArrestRecords(
     insertRecords: InsertArrestRecord[]
   ): Promise<ArrestRecord[]> {
-    const records = insertRecords.map((insertRecord) => {
-      const id = randomUUID();
-      const record: ArrestRecord = {
-        ...insertRecord,
-        id,
-        createdAt: new Date(),
-      };
-      this.arrestRecords.set(id, record);
-      return record;
-    });
+    if (insertRecords.length === 0) return [];
+
+    const records = await db
+      .insert(arrestRecords)
+      .values(insertRecords)
+      .returning();
+
     return records;
   }
 
   async deleteArrestRecord(id: string): Promise<boolean> {
-    return this.arrestRecords.delete(id);
+    const result = await db
+      .delete(arrestRecords)
+      .where(eq(arrestRecords.id, id))
+      .returning();
+
+    return result.length > 0;
   }
 
   async getTotalRecordsCount(): Promise<number> {
-    return this.arrestRecords.size;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(arrestRecords);
+
+    return count;
   }
 
   async getLastScrapeDate(): Promise<string | null> {
-    const records = Array.from(this.arrestRecords.values());
-    if (records.length === 0) return null;
+    const [record] = await db
+      .select({ scrapedDate: arrestRecords.scrapedDate })
+      .from(arrestRecords)
+      .orderBy(desc(arrestRecords.scrapedDate))
+      .limit(1);
 
-    const sortedRecords = records.sort(
-      (a, b) =>
-        new Date(b.scrapedDate).getTime() - new Date(a.scrapedDate).getTime()
-    );
-    return sortedRecords[0].scrapedDate;
+    return record?.scrapedDate || null;
   }
 
   // Scrape Jobs Methods
   async getScrapeJobs(): Promise<ScrapeJob[]> {
-    const jobs = Array.from(this.scrapeJobs.values());
-    return jobs.sort(
-      (a, b) =>
-        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-    );
+    const jobs = await db
+      .select()
+      .from(scrapeJobs)
+      .orderBy(desc(scrapeJobs.startedAt));
+
+    return jobs;
   }
 
   async getScrapeJob(id: string): Promise<ScrapeJob | undefined> {
-    return this.scrapeJobs.get(id);
+    const [job] = await db
+      .select()
+      .from(scrapeJobs)
+      .where(eq(scrapeJobs.id, id))
+      .limit(1);
+
+    return job;
   }
 
   async getScrapeJobByJobId(jobId: string): Promise<ScrapeJob | undefined> {
-    return Array.from(this.scrapeJobs.values()).find(
-      (job) => job.jobId === jobId
-    );
+    const [job] = await db
+      .select()
+      .from(scrapeJobs)
+      .where(eq(scrapeJobs.jobId, jobId))
+      .limit(1);
+
+    return job;
   }
 
   async createScrapeJob(insertJob: InsertScrapeJob): Promise<ScrapeJob> {
-    const id = randomUUID();
-    const job: ScrapeJob = {
-      ...insertJob,
-      id,
-      startedAt: new Date(),
-      completedAt: null,
-    };
-    this.scrapeJobs.set(id, job);
+    const [job] = await db.insert(scrapeJobs).values(insertJob).returning();
+
     return job;
   }
 
@@ -192,43 +203,47 @@ export class MemStorage implements IStorage {
     id: string,
     updates: Partial<Omit<ScrapeJob, "id" | "jobId" | "startedAt">>
   ): Promise<ScrapeJob | undefined> {
-    const job = this.scrapeJobs.get(id);
-    if (!job) return undefined;
+    const [job] = await db
+      .update(scrapeJobs)
+      .set(updates)
+      .where(eq(scrapeJobs.id, id))
+      .returning();
 
-    const updatedJob = { ...job, ...updates };
-    this.scrapeJobs.set(id, updatedJob);
-    return updatedJob;
+    return job;
   }
 
   async getActiveJobsCount(): Promise<number> {
-    return Array.from(this.scrapeJobs.values()).filter(
-      (job) => job.status === "running" || job.status === "pending"
-    ).length;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(scrapeJobs)
+      .where(or(eq(scrapeJobs.status, "running"), eq(scrapeJobs.status, "pending"))!);
+
+    return count;
   }
 
   // CRM Sync Log Methods
   async getCrmSyncLogs(): Promise<CrmSyncLog[]> {
-    const logs = Array.from(this.crmSyncLogs.values());
-    return logs.sort(
-      (a, b) =>
-        new Date(b.syncDate).getTime() - new Date(a.syncDate).getTime()
-    );
+    const logs = await db
+      .select()
+      .from(crmSyncLog)
+      .orderBy(desc(crmSyncLog.syncDate));
+
+    return logs;
   }
 
   async createCrmSyncLog(insertLog: InsertCrmSyncLog): Promise<CrmSyncLog> {
-    const id = randomUUID();
-    const log: CrmSyncLog = {
-      ...insertLog,
-      id,
-      syncDate: new Date(),
-    };
-    this.crmSyncLogs.set(id, log);
+    const [log] = await db.insert(crmSyncLog).values(insertLog).returning();
+
     return log;
   }
 
   async getTotalExportsCount(): Promise<number> {
-    return this.crmSyncLogs.size;
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(crmSyncLog);
+
+    return count;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DbStorage();

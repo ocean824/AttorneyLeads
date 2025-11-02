@@ -49,14 +49,14 @@ export function RecordsFilters({ filters, onFiltersChange }: RecordsFiltersProps
 
         {/* County Filter */}
         <Select
-          value={filters.county}
-          onValueChange={(value) => onFiltersChange({ ...filters, county: value })}
+          value={filters.county || "all"}
+          onValueChange={(value) => onFiltersChange({ ...filters, county: value === "all" ? "" : value })}
         >
           <SelectTrigger className="w-full md:w-48" data-testid="select-county-filter">
             <SelectValue placeholder="All Counties" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Counties</SelectItem>
+            <SelectItem value="all">All Counties</SelectItem>
             {FLORIDA_COUNTIES.map(county => (
               <SelectItem key={county} value={county}>
                 {county}
