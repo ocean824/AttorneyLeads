@@ -14,8 +14,11 @@ import { calculateLeadScore } from "./lead-scoring";
 import { findDuplicates } from "./deduplication";
 import { spawn } from "child_process";
 import path from "path";
+import { registerCrmRoutes } from "./crm-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Register CRM routes
+  registerCrmRoutes(app);
   // Dashboard Stats
   app.get("/api/stats", async (req, res) => {
     try {

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Database, Activity, FileText, Copy, BarChart3 } from "lucide-react";
+import { Scale, Database, Activity, FileText, Copy, BarChart3, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ export function Header() {
     { path: "/jobs", label: "Jobs", icon: FileText },
     { path: "/duplicates", label: "Duplicates", icon: Copy },
     { path: "/analytics", label: "Analytics", icon: BarChart3 },
+    { path: "/crm", label: "CRM", icon: Users },
   ];
 
   return (

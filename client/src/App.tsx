@@ -9,6 +9,7 @@ import Records from "@/pages/records";
 import Jobs from "@/pages/jobs";
 import Duplicates from "@/pages/duplicates";
 import Analytics from "@/pages/analytics";
+import CRM from "@/pages/crm";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/jobs" component={Jobs} />
       <Route path="/duplicates" component={Duplicates} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/crm" component={CRM} />
       <Route component={NotFound} />
     </Switch>
   );

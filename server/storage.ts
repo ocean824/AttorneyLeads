@@ -7,10 +7,19 @@ import {
   type InsertCrmSyncLog,
   type DuplicateCandidate,
   type InsertDuplicateCandidate,
+  type CrmProspect,
+  type InsertCrmProspect,
+  type OutreachCampaign,
+  type InsertOutreachCampaign,
+  type ScheduledMeeting,
+  type InsertScheduledMeeting,
   arrestRecords,
   scrapeJobs,
   crmSyncLog,
   duplicateCandidates,
+  crmProspects,
+  outreachCampaigns,
+  scheduledMeetings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, or, like, desc, sql } from "drizzle-orm";
@@ -67,6 +76,25 @@ export interface IStorage {
   getChargeCategoryDistribution(dateFrom?: string, dateTo?: string): Promise<Array<{ category: string; count: number }>>;
   getJobsOverTime(dateFrom?: string, dateTo?: string): Promise<Array<{ date: string; total: number; completed: number; failed: number }>>;
   getAIEnhancementStats(dateFrom?: string, dateTo?: string): Promise<{ totalRecords: number; aiEnhanced: number; avgConfidenceScore: number }>;
+
+  // CRM Prospects
+  getCrmProspects(filters?: { status?: string; source?: string }): Promise<CrmProspect[]>;
+  getCrmProspect(id: string): Promise<CrmProspect | undefined>;
+  createCrmProspect(prospect: InsertCrmProspect): Promise<CrmProspect>;
+  updateCrmProspect(id: string, updates: Partial<Omit<CrmProspect, "id" | "createdAt">>): Promise<CrmProspect | undefined>;
+  deleteCrmProspect(id: string): Promise<boolean>;
+
+  // Outreach Campaigns
+  getOutreachCampaigns(): Promise<OutreachCampaign[]>;
+  getOutreachCampaign(id: string): Promise<OutreachCampaign | undefined>;
+  createOutreachCampaign(campaign: InsertOutreachCampaign): Promise<OutreachCampaign>;
+  updateOutreachCampaign(id: string, updates: Partial<Omit<OutreachCampaign, "id" | "createdAt">>): Promise<OutreachCampaign | undefined>;
+
+  // Scheduled Meetings
+  getScheduledMeetings(filters?: { status?: string }): Promise<ScheduledMeeting[]>;
+  getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined>;
+  createScheduledMeeting(meeting: InsertScheduledMeeting): Promise<ScheduledMeeting>;
+  updateScheduledMeeting(id: string, updates: Partial<Omit<ScheduledMeeting, "id" | "createdAt">>): Promise<ScheduledMeeting | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -452,6 +480,80 @@ export class DbStorage implements IStorage {
       .where(whereClause);
 
     return stats;
+  }
+
+  // CRM Prospects Methods
+  async getCrmProspects(filters?: { status?: string; source?: string }): Promise<CrmProspect[]> {
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(crmProspects.status, filters.status));
+    }
+    if (filters?.source) {
+      conditions.push(eq(crmProspects.source, filters.source));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    return await db.select().from(crmProspects).where(whereClause).orderBy(desc(crmProspects.createdAt));
+  }
+
+  async getCrmProspect(id: string): Promise<CrmProspect | undefined> {
+    const [prospect] = await db.select().from(crmProspects).where(eq(crmProspects.id, id));
+    return prospect;
+  }
+
+  async createCrmProspect(prospect: InsertCrmProspect): Promise<CrmProspect> {
+    const [created] = await db.insert(crmProspects).values(prospect).returning();
+    return created;
+  }
+
+  async updateCrmProspect(id: string, updates: Partial<Omit<CrmProspect, "id" | "createdAt">>): Promise<CrmProspect | undefined> {
+    const [updated] = await db.update(crmProspects).set(updates).where(eq(crmProspects.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCrmProspect(id: string): Promise<boolean> {
+    const result = await db.delete(crmProspects).where(eq(crmProspects.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Outreach Campaigns Methods
+  async getOutreachCampaigns(): Promise<OutreachCampaign[]> {
+    return await db.select().from(outreachCampaigns).orderBy(desc(outreachCampaigns.createdAt));
+  }
+
+  async getOutreachCampaign(id: string): Promise<OutreachCampaign | undefined> {
+    const [campaign] = await db.select().from(outreachCampaigns).where(eq(outreachCampaigns.id, id));
+    return campaign;
+  }
+
+  async createOutreachCampaign(campaign: InsertOutreachCampaign): Promise<OutreachCampaign> {
+    const [created] = await db.insert(outreachCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateOutreachCampaign(id: string, updates: Partial<Omit<OutreachCampaign, "id" | "createdAt">>): Promise<OutreachCampaign | undefined> {
+    const [updated] = await db.update(outreachCampaigns).set(updates).where(eq(outreachCampaigns.id, id)).returning();
+    return updated;
+  }
+
+  // Scheduled Meetings Methods
+  async getScheduledMeetings(filters?: { status?: string }): Promise<ScheduledMeeting[]> {
+    const whereClause = filters?.status ? eq(scheduledMeetings.status, filters.status) : undefined;
+    return await db.select().from(scheduledMeetings).where(whereClause).orderBy(desc(scheduledMeetings.scheduledAt));
+  }
+
+  async getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined> {
+    const [meeting] = await db.select().from(scheduledMeetings).where(eq(scheduledMeetings.id, id));
+    return meeting;
+  }
+
+  async createScheduledMeeting(meeting: InsertScheduledMeeting): Promise<ScheduledMeeting> {
+    const [created] = await db.insert(scheduledMeetings).values(meeting).returning();
+    return created;
+  }
+
+  async updateScheduledMeeting(id: string, updates: Partial<Omit<ScheduledMeeting, "id" | "createdAt">>): Promise<ScheduledMeeting | undefined> {
+    const [updated] = await db.update(scheduledMeetings).set(updates).where(eq(scheduledMeetings.id, id)).returning();
+    return updated;
   }
 }
 
