@@ -89,62 +89,117 @@ class FloridaScraper:
     
     def scrape_miami_dade(self) -> List[Dict[str, Any]]:
         """
-        Miami-Dade County scraper
-        Attempts to scrape from Miami-Dade Corrections public inmate roster
-        Note: This is a simplified implementation. Production scrapers need to handle:
-        - CAPTCHAs, rate limiting, session management, dynamic JavaScript
+        Miami-Dade County scraper - PROOF OF CONCEPT with form submission
+        Demonstrates proper web scraping technique with POST requests
+        Note: Production scrapers need to handle CAPTCHAs, rate limiting, sessions, JavaScript
         """
         try:
-            # Attempt to fetch real data (may fail due to anti-scraping measures)
-            url = "https://www8.miamidade.gov/Apps/MDC/InmateSearch/"
-            response = self.session.get(url, timeout=10)
+            # Step 1: Get the search page to extract any CSRF tokens or form data
+            base_url = "https://www8.miamidade.gov/Apps/MDC/InmateSearch/"
+            search_url = f"{base_url}Search.aspx"
             
-            if response.status_code != 200:
-                print(f"Miami-Dade site returned {response.status_code}, using fallback data", file=sys.stderr)
+            print(f"[Miami-Dade] Fetching search form...", file=sys.stderr)
+            initial_response = self.session.get(search_url, timeout=10)
+            
+            if initial_response.status_code != 200:
+                print(f"Miami-Dade initial request failed: {initial_response.status_code}", file=sys.stderr)
                 return self.scrape_generic()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Step 2: Parse the form to get hidden fields (ViewState, EventValidation for ASP.NET)
+            soup = BeautifulSoup(initial_response.content, 'html.parser')
+            
+            # Extract ASP.NET form state (many county sites use ASP.NET)
+            viewstate = soup.find('input', {'name': '__VIEWSTATE'})
+            viewstate_generator = soup.find('input', {'name': '__VIEWSTATEGENERATOR'})
+            event_validation = soup.find('input', {'name': '__EVENTVALIDATION'})
+            
+            # Step 3: Build POST request with form data
+            form_data = {
+                'searchType': 'all',  # Search all inmates
+                'lastName': '',       # Empty = all records
+                'firstName': '',
+                'bookingDate': '',
+                '__EVENTTARGET': 'btnSearch',
+                '__EVENTARGUMENT': '',
+            }
+            
+            # Add ASP.NET hidden fields if present
+            if viewstate:
+                form_data['__VIEWSTATE'] = viewstate.get('value', '')
+            if viewstate_generator:
+                form_data['__VIEWSTATEGENERATOR'] = viewstate_generator.get('value', '')
+            if event_validation:
+                form_data['__EVENTVALIDATION'] = event_validation.get('value', '')
+            
+            print(f"[Miami-Dade] Submitting search form with POST request...", file=sys.stderr)
+            
+            # Step 4: Submit the search form with POST
+            post_response = self.session.post(
+                search_url,
+                data=form_data,
+                headers={
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': search_url
+                },
+                timeout=15
+            )
+            
+            if post_response.status_code != 200:
+                print(f"Miami-Dade POST request failed: {post_response.status_code}", file=sys.stderr)
+                return self.scrape_generic()
+            
+            # Step 5: Parse the results
+            result_soup = BeautifulSoup(post_response.content, 'html.parser')
             records = []
             
-            # Try to parse inmate table (structure may change)
-            # This is a simplified parser - real implementation would be more robust
-            inmate_rows = soup.find_all('tr', class_=['odd', 'even'])
+            # Look for results in table or GridView
+            result_table = result_soup.find('table', {'id': lambda x: x and 'GridView' in x})
+            if not result_table:
+                result_table = result_soup.find('table', class_='results')
             
-            if not inmate_rows:
-                print("No inmate rows found in HTML, using fallback data", file=sys.stderr)
+            if not result_table:
+                print("[Miami-Dade] No result table found, using fallback", file=sys.stderr)
                 return self.scrape_generic()
             
-            for row in inmate_rows[:30]:  # Limit to 30 records
+            rows = result_table.find_all('tr')[1:]  # Skip header row
+            
+            for row in rows[:30]:
                 cells = row.find_all('td')
-                if len(cells) < 5:
+                if len(cells) < 3:
                     continue
                 
                 try:
+                    # Parse bond amount from text like "$5,000" or "No Bond"
+                    bond_text = cells[4].get_text(strip=True) if len(cells) > 4 else "0"
+                    bond_amount = 0
+                    if bond_text and bond_text.lower() != 'no bond':
+                        bond_amount = int(''.join(filter(str.isdigit, bond_text)) or '0')
+                    
                     record = {
-                        "fullName": cells[0].get_text(strip=True) if len(cells) > 0 else "Unknown",
+                        "fullName": cells[0].get_text(strip=True),
                         "charges": cells[3].get_text(strip=True) if len(cells) > 3 else "Unknown",
                         "bookingDate": cells[1].get_text(strip=True) if len(cells) > 1 else datetime.now().strftime("%Y-%m-%d"),
-                        "bondAmount": 0,  # Would need to parse from charges/bond column
+                        "bondAmount": bond_amount,
                         "age": None,
-                        "gender": "Unknown",
-                        "race": "Unknown",
+                        "gender": cells[5].get_text(strip=True) if len(cells) > 5 else "Unknown",
+                        "race": cells[6].get_text(strip=True) if len(cells) > 6 else "Unknown",
                         "facility": "Miami-Dade County Detention Center",
                         "county": "Miami-Dade"
                     }
                     records.append(record)
                 except Exception as e:
-                    print(f"Error parsing row: {e}", file=sys.stderr)
+                    print(f"[Miami-Dade] Error parsing row: {e}", file=sys.stderr)
                     continue
             
             if records:
-                print(f"Successfully scraped {len(records)} records from Miami-Dade", file=sys.stderr)
+                print(f"[Miami-Dade] ✓ Successfully scraped {len(records)} records", file=sys.stderr)
                 return records
             else:
-                print("No valid records parsed, using fallback data", file=sys.stderr)
+                print("[Miami-Dade] No valid records found, using fallback", file=sys.stderr)
                 return self.scrape_generic()
                 
         except Exception as e:
-            print(f"Miami-Dade scraper error: {e}, using fallback data", file=sys.stderr)
+            print(f"[Miami-Dade] Scraper error: {e}, using fallback", file=sys.stderr)
             return self.scrape_generic()
     
     def scrape_broward(self) -> List[Dict[str, Any]]:
