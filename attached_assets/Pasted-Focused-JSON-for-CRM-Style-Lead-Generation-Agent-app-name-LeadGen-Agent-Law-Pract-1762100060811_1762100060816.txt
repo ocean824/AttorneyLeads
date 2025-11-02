@@ -1,0 +1,101 @@
+Focused JSON for CRM-Style Lead Generation Agent
+{
+  "app": {
+    "name": "LeadGen Agent - Law Practice Pros",
+    "category": "Professional CRM and Lead Generation",
+    "platform": "Replit",
+    "runtime": "Node.js",
+    "database": "PostgreSQL",
+    "security": {
+      "https": true,
+      "cors": ["https://lawpracticepros.replit.app"],
+      "data_encryption": "AES-256"
+    },
+    "secrets": [
+      "PHANTOMBUSTER_API_KEY",
+      "GOOGLE_SHEETS_TOKEN",
+      "CALENDLY_API_KEY"
+    ],
+    "modules": [
+      {
+        "id": "prospect_discovery",
+        "provider": "PhantomBuster",
+        "endpoint": "https://api.phantombuster.com/api/v2/agents/launch",
+        "method": "POST",
+        "headers": {
+          "X-Phantombuster-Key-1": "{{PHANTOMBUSTER_API_KEY}}"
+        },
+        "body": {
+          "id": "{{PHANTOM_AGENT_ID}}",
+          "argument": {
+            "searchQuery": "{{business_keywords}}",
+            "filters": {
+              "location": "{{city_or_state}}"
+            },
+            "actions": ["findProfiles", "extractContacts"]
+          }
+        },
+        "outputs": ["linkedin_profiles", "contact_emails"]
+      },
+      {
+        "id": "automated_outreach",
+        "provider": "Internal",
+        "method": "POST",
+        "endpoint": "/api/outreach/send",
+        "body": {
+          "template": "Hi {{first_name}}, we're helping law firms grow faster with AI-enhanced CRM tools. Want a quick look?",
+          "contact_method": "email or DM",
+          "cta": "[See How It Works]"
+        },
+        "outputs": ["outreach_status"]
+      },
+      {
+        "id": "lead_capture",
+        "provider": "Google Sheets API",
+        "endpoint": "https://sheets.googleapis.com/v4/spreadsheets/{{SPREADSHEET_ID}}/values/Leads:append",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{GOOGLE_SHEETS_TOKEN}}"
+        },
+        "body": {
+          "majorDimension": "ROWS",
+          "values": [
+            ["{{timestamp}}", "{{full_name}}", "{{email}}", "{{source}}", "Lead Captured"]
+          ]
+        }
+      },
+      {
+        "id": "calendar_scheduler",
+        "provider": "Calendly",
+        "endpoint": "https://api.calendly.com/scheduled_events",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{CALENDLY_API_KEY}}"
+        },
+        "body": {
+          "invitee": "{{lead_email}}",
+          "event_type": "Demo Call",
+          "availability_window": "next_7_days",
+          "meeting_options": ["Zoom", "Phone"]
+        }
+      }
+    ],
+    "compliance": {
+      "consent_required": true,
+      "privacy_policy_url": "https://lawpracticepros.replit.app/privacy",
+      "data_retention_days": 90,
+      "opt_out_supported": true,
+      "audit_logging": true
+    }
+  }
+}
+
+🧠 LeadGen Pipeline Flow Summary
+
+Prospect Discovery via PhantomBuster (LinkedIn, Facebook scraping by keyword/location).
+
+Automated Outreach using personalized message templates.
+
+Lead Capture to Google Sheets (CRM tracking).
+
+Scheduler Invite sent automatically via Calendly.
