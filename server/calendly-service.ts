@@ -38,7 +38,7 @@ export class CalendlyService {
    * Get available event types (e.g., Demo Call, Consultation)
    */
   async getEventTypes(): Promise<CalendlyEventType[]> {
-    if (!this.apiKey) {
+    if (!this.apiKey || !this.userUri) {
       return this.mockGetEventTypes();
     }
 
@@ -70,7 +70,7 @@ export class CalendlyService {
     prospectName: string;
     eventType?: string;
   }): Promise<{ schedulingUrl: string }> {
-    if (!this.apiKey) {
+    if (!this.apiKey || !this.userUri) {
       return this.mockCreateSchedulingLink(params);
     }
 
@@ -101,7 +101,7 @@ export class CalendlyService {
     minStartTime?: string;
     maxStartTime?: string;
   }): Promise<ScheduledMeeting[]> {
-    if (!this.apiKey) {
+    if (!this.apiKey || !this.userUri) {
       return this.mockGetScheduledEvents();
     }
 
