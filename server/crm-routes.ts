@@ -1,9 +1,11 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { 
-  createProspectSchema, 
+  createProspectSchema,
+  updateProspectSchema,
   sendOutreachSchema,
   scheduleMeetingSchema,
+  syncSheetsSchema,
   type InsertCrmProspect 
 } from "@shared/schema";
 import { phantomBusterService } from "./phantombuster-service";
@@ -50,14 +52,18 @@ export function registerCrmRoutes(app: Express) {
   app.patch("/api/crm/prospects/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.updateCrmProspect(id, req.body);
+      const validatedData = updateProspectSchema.parse(req.body);
+      const updated = await storage.updateCrmProspect(id, validatedData);
       if (!updated) {
         return res.status(404).json({ error: "Prospect not found" });
       }
       res.json(updated);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating prospect:", error);
-      res.status(400).json({ error: "Failed to update prospect" });
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update prospect" });
     }
   });
 
@@ -80,6 +86,10 @@ export function registerCrmRoutes(app: Express) {
     try {
       const { searchQuery, location, platform } = req.body;
       
+      if (!searchQuery || !location) {
+        return res.status(400).json({ error: "searchQuery and location are required" });
+      }
+      
       // Launch PhantomBuster agent
       const { containerId } = await phantomBusterService.launchProspectDiscovery({
         searchQuery,
@@ -87,25 +97,35 @@ export function registerCrmRoutes(app: Express) {
         platform: platform || "linkedin",
       });
 
-      // Simulate async scraping - in production, use webhooks or polling
-      setTimeout(async () => {
-        try {
-          const prospects = await phantomBusterService.fetchResults(containerId);
-          
-          // Save prospects to database
-          for (const prospect of prospects) {
-            await storage.createCrmProspect(prospect as InsertCrmProspect);
-          }
-        } catch (error) {
-          console.error("Error fetching PhantomBuster results:", error);
-        }
-      }, 5000);
-
       res.json({ 
         message: "Prospect discovery started", 
         containerId,
         estimatedTime: "5-10 seconds"
       });
+
+      // Process results asynchronously (don't block response)
+      (async () => {
+        try {
+          // Wait for scraping to complete
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          const prospects = await phantomBusterService.fetchResults(containerId);
+          
+          // Deduplicate by email before saving
+          const existingProspects = await storage.getCrmProspects();
+          const existingEmails = new Set(existingProspects.map(p => p.email?.toLowerCase()).filter(Boolean));
+          
+          for (const prospect of prospects) {
+            const prospectEmail = prospect.email?.toLowerCase();
+            if (!prospectEmail || existingEmails.has(prospectEmail)) {
+              continue; // Skip duplicates
+            }
+            await storage.createCrmProspect(prospect as InsertCrmProspect);
+            existingEmails.add(prospectEmail);
+          }
+        } catch (error) {
+          console.error("Error fetching PhantomBuster results:", error);
+        }
+      })();
     } catch (error) {
       console.error("Error launching prospect discovery:", error);
       res.status(500).json({ error: "Failed to start prospect discovery" });
@@ -229,44 +249,42 @@ export function registerCrmRoutes(app: Express) {
   // Google Sheets Sync
   app.post("/api/crm/sheets/sync-prospects", async (req, res) => {
     try {
-      const { spreadsheetId, sheetName } = req.body;
-      
-      if (!spreadsheetId) {
-        return res.status(400).json({ error: "spreadsheetId is required" });
-      }
+      const validatedData = syncSheetsSchema.parse(req.body);
       
       const prospects = await storage.getCrmProspects();
       const result = await googleSheetsService.appendProspects({
-        spreadsheetId,
-        sheetName,
+        spreadsheetId: validatedData.spreadsheetId,
+        sheetName: validatedData.sheetName,
         prospects,
       });
       
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error syncing prospects to Sheets:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
       res.status(500).json({ error: "Failed to sync prospects" });
     }
   });
 
   app.post("/api/crm/sheets/sync-records", async (req, res) => {
     try {
-      const { spreadsheetId, sheetName } = req.body;
-      
-      if (!spreadsheetId) {
-        return res.status(400).json({ error: "spreadsheetId is required" });
-      }
+      const validatedData = syncSheetsSchema.parse(req.body);
       
       const { records } = await storage.getArrestRecords({ pageSize: 1000 });
       const result = await googleSheetsService.appendArrestRecords({
-        spreadsheetId,
-        sheetName,
+        spreadsheetId: validatedData.spreadsheetId,
+        sheetName: validatedData.sheetName,
         records,
       });
       
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error syncing records to Sheets:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
       res.status(500).json({ error: "Failed to sync records" });
     }
   });

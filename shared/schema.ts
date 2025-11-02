@@ -215,9 +215,28 @@ export const scheduleMeetingSchema = z.object({
   scheduledAt: z.string(), // ISO date string
 });
 
+export const updateProspectSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  company: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  linkedinUrl: z.string().nullable().optional(),
+  status: z.enum(["new", "contacted", "qualified", "converted", "rejected"]).optional(),
+  tags: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  lastContactedAt: z.coerce.date().nullable().optional(),
+});
+
+export const syncSheetsSchema = z.object({
+  spreadsheetId: z.string().min(1),
+  sheetName: z.string().optional(),
+});
+
 export type CreateProspectRequest = z.infer<typeof createProspectSchema>;
 export type SendOutreachRequest = z.infer<typeof sendOutreachSchema>;
 export type ScheduleMeetingRequest = z.infer<typeof scheduleMeetingSchema>;
+export type UpdateProspectRequest = z.infer<typeof updateProspectSchema>;
+export type SyncSheetsRequest = z.infer<typeof syncSheetsSchema>;
 
 // Florida Counties (commonly used for attorney leads)
 export const FLORIDA_COUNTIES = [
