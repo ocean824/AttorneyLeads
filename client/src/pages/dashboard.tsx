@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Database, Download, FileText } from "lucide-react";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { ScrapeActionPanel } from "@/components/dashboard/scrape-action-panel";
+import { ScrapeWizard } from "@/components/scrape-wizard/scrape-wizard";
 import { RecentJobsPreview } from "@/components/dashboard/recent-jobs-preview";
 import type { ArrestRecord, ScrapeJob } from "@shared/schema";
 
@@ -36,9 +36,9 @@ export default function Dashboard() {
         {/* Stats Overview */}
         <StatsCards stats={stats} isLoading={statsLoading} />
 
-        {/* Primary Action Panel */}
+        {/* Scraping Wizard */}
         <div className="mb-8">
-          <ScrapeActionPanel />
+          <ScrapeWizard />
         </div>
 
         {/* Recent Jobs Preview */}
