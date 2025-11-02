@@ -50,6 +50,18 @@ export const crmSyncLog = pgTable("crm_sync_log", {
   errorMessage: text("error_message"),
 });
 
+// Duplicate Candidates Table
+export const duplicateCandidates = pgTable("duplicate_candidates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recordId1: text("record_id_1").notNull(),
+  recordId2: text("record_id_2").notNull(),
+  confidenceScore: integer("confidence_score").notNull(), // 0-100
+  matchReasons: text("match_reasons").notNull(), // JSON array of match factors
+  status: text("status").notNull().default("pending"), // pending, merged, dismissed
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert Schemas
 export const insertArrestRecordSchema = createInsertSchema(arrestRecords).omit({
   id: true,
@@ -66,6 +78,11 @@ export const insertCrmSyncLogSchema = createInsertSchema(crmSyncLog).omit({
   syncDate: true,
 });
 
+export const insertDuplicateCandidateSchema = createInsertSchema(duplicateCandidates).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type ArrestRecord = typeof arrestRecords.$inferSelect;
 export type InsertArrestRecord = z.infer<typeof insertArrestRecordSchema>;
@@ -75,6 +92,9 @@ export type InsertScrapeJob = z.infer<typeof insertScrapeJobSchema>;
 
 export type CrmSyncLog = typeof crmSyncLog.$inferSelect;
 export type InsertCrmSyncLog = z.infer<typeof insertCrmSyncLogSchema>;
+
+export type DuplicateCandidate = typeof duplicateCandidates.$inferSelect;
+export type InsertDuplicateCandidate = z.infer<typeof insertDuplicateCandidateSchema>;
 
 // API Request/Response Types
 export const startScrapeSchema = z.object({

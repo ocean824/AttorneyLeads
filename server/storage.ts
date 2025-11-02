@@ -5,9 +5,12 @@ import {
   type InsertScrapeJob,
   type CrmSyncLog,
   type InsertCrmSyncLog,
+  type DuplicateCandidate,
+  type InsertDuplicateCandidate,
   arrestRecords,
   scrapeJobs,
   crmSyncLog,
+  duplicateCandidates,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, or, like, desc, sql } from "drizzle-orm";
@@ -44,6 +47,15 @@ export interface IStorage {
   getCrmSyncLogs(): Promise<CrmSyncLog[]>;
   createCrmSyncLog(log: InsertCrmSyncLog): Promise<CrmSyncLog>;
   getTotalExportsCount(): Promise<number>;
+
+  // Duplicate Candidates
+  getDuplicateCandidates(status?: string): Promise<DuplicateCandidate[]>;
+  createDuplicateCandidate(candidate: InsertDuplicateCandidate): Promise<DuplicateCandidate>;
+  updateDuplicateCandidate(
+    id: string,
+    updates: Partial<Omit<DuplicateCandidate, "id" | "createdAt">>
+  ): Promise<DuplicateCandidate | undefined>;
+  getPendingDuplicatesCount(): Promise<number>;
 }
 
 export class DbStorage implements IStorage {
@@ -241,6 +253,52 @@ export class DbStorage implements IStorage {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(crmSyncLog);
+
+    return count;
+  }
+
+  // Duplicate Candidates Methods
+  async getDuplicateCandidates(status?: string): Promise<DuplicateCandidate[]> {
+    const whereClause = status ? eq(duplicateCandidates.status, status) : undefined;
+
+    const candidates = await db
+      .select()
+      .from(duplicateCandidates)
+      .where(whereClause)
+      .orderBy(desc(duplicateCandidates.confidenceScore), desc(duplicateCandidates.createdAt));
+
+    return candidates;
+  }
+
+  async createDuplicateCandidate(
+    insertCandidate: InsertDuplicateCandidate
+  ): Promise<DuplicateCandidate> {
+    const [candidate] = await db
+      .insert(duplicateCandidates)
+      .values(insertCandidate)
+      .returning();
+
+    return candidate;
+  }
+
+  async updateDuplicateCandidate(
+    id: string,
+    updates: Partial<Omit<DuplicateCandidate, "id" | "createdAt">>
+  ): Promise<DuplicateCandidate | undefined> {
+    const [candidate] = await db
+      .update(duplicateCandidates)
+      .set(updates)
+      .where(eq(duplicateCandidates.id, id))
+      .returning();
+
+    return candidate;
+  }
+
+  async getPendingDuplicatesCount(): Promise<number> {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(duplicateCandidates)
+      .where(eq(duplicateCandidates.status, "pending"));
 
     return count;
   }

@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { calculateLeadScore } from "./lead-scoring";
+import { findDuplicates } from "./deduplication";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard Stats
@@ -200,6 +201,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Duplicate Candidates
+  app.get("/api/duplicates", async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const candidates = await storage.getDuplicateCandidates(status);
+      res.json(candidates);
+    } catch (error) {
+      console.error("Error fetching duplicate candidates:", error);
+      res.status(500).json({ error: "Failed to fetch duplicate candidates" });
+    }
+  });
+
+  // Scan for Duplicates
+  app.post("/api/duplicates/scan", async (req, res) => {
+    try {
+      const scannedCount = await scanForDuplicates();
+      res.json({ 
+        message: "Duplicate scan completed",
+        scannedCount,
+      });
+    } catch (error) {
+      console.error("Error scanning for duplicates:", error);
+      res.status(500).json({ error: "Failed to scan for duplicates" });
+    }
+  });
+
+  // Merge Duplicate Records
+  app.post("/api/duplicates/:id/merge", async (req, res) => {
+    try {
+      const candidateId = req.params.id;
+      const candidate = await storage.getDuplicateCandidates();
+      const target = candidate.find(c => c.id === candidateId);
+      
+      if (!target) {
+        return res.status(404).json({ error: "Duplicate candidate not found" });
+      }
+
+      const primaryRecord = await storage.getArrestRecord(target.recordId1);
+      const duplicateRecord = await storage.getArrestRecord(target.recordId2);
+
+      if (!primaryRecord || !duplicateRecord) {
+        return res.status(404).json({ error: "One or both records not found" });
+      }
+
+      await storage.deleteArrestRecord(target.recordId2);
+
+      await storage.updateDuplicateCandidate(candidateId, {
+        status: "merged",
+        reviewedAt: new Date(),
+      });
+
+      res.json({ message: "Records merged successfully" });
+    } catch (error) {
+      console.error("Error merging records:", error);
+      res.status(500).json({ error: "Failed to merge records" });
+    }
+  });
+
+  // Dismiss Duplicate Candidate
+  app.post("/api/duplicates/:id/dismiss", async (req, res) => {
+    try {
+      const candidateId = req.params.id;
+      const updated = await storage.updateDuplicateCandidate(candidateId, {
+        status: "dismissed",
+        reviewedAt: new Date(),
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Duplicate candidate not found" });
+      }
+
+      res.json({ message: "Duplicate candidate dismissed" });
+    } catch (error) {
+      console.error("Error dismissing duplicate:", error);
+      res.status(500).json({ error: "Failed to dismiss duplicate" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -363,4 +442,42 @@ function generateCSV(records: any[]): string {
   ].join("\n");
 
   return csvContent;
+}
+
+// Scan for duplicate arrest records
+async function scanForDuplicates(): Promise<number> {
+  const { records } = await storage.getArrestRecords({ pageSize: 9999 });
+  
+  let duplicatesFound = 0;
+
+  for (let i = 0; i < records.length; i++) {
+    const currentRecord = records[i];
+    const otherRecords = records.slice(i + 1);
+    
+    const matches = findDuplicates(currentRecord, otherRecords, 60);
+
+    for (const match of matches) {
+      const existingCandidates = await storage.getDuplicateCandidates();
+      
+      const alreadyExists = existingCandidates.some(
+        candidate => 
+          (candidate.recordId1 === match.record1.id && candidate.recordId2 === match.record2.id) ||
+          (candidate.recordId1 === match.record2.id && candidate.recordId2 === match.record1.id)
+      );
+
+      if (!alreadyExists) {
+        await storage.createDuplicateCandidate({
+          recordId1: match.record1.id,
+          recordId2: match.record2.id,
+          confidenceScore: match.confidenceScore,
+          matchReasons: JSON.stringify(match.matchReasons),
+          status: "pending",
+          reviewedAt: null,
+        });
+        duplicatesFound++;
+      }
+    }
+  }
+
+  return duplicatesFound;
 }
