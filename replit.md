@@ -1,10 +1,10 @@
 # Attorney Leads - Florida Arrest Records Platform
 
 ## Overview
-A professional B2B web application for scraping Florida arrest records and managing attorney leads. The platform enables legal professionals to collect, filter, and export arrest records from multiple Florida counties for lead generation purposes.
+A professional B2B web application for scraping Florida arrest records and managing attorney leads with comprehensive CRM integrations. The platform enables legal professionals to collect, filter, and export arrest records from multiple Florida counties for lead generation purposes, enhanced with automated prospect discovery, outreach, and meeting scheduling capabilities.
 
 ## Current State
-**Phase**: Production Ready - All 6 Advanced Features Complete ✅
+**Phase**: Production Ready - All Core + CRM Features Complete ✅
 - Full-stack application with PostgreSQL database
 - Lead scoring system with weighted algorithm (0-100 scale)
 - Duplicate detection with fuzzy matching
@@ -12,19 +12,28 @@ A professional B2B web application for scraping Florida arrest records and manag
 - Python scraper microservice with BeautifulSoup4
 - Multi-step scraping wizard UI
 - Analytics dashboard with Recharts visualizations
+- **NEW: CRM Integrations** - PhantomBuster, Calendly, Google Sheets ✅
+- **NEW: Prospect Management** - Discovery, tracking, outreach automation ✅
+- **NEW: Meeting Scheduling** - Calendly integration with auto-tracking ✅
 - Complete CRUD operations and export functionality
 - Real-time job monitoring with polling
 - Application running without errors on port 5000
-- **All 6 planned features complete and tested** ✅
 
 ## Recent Changes
-- **2025-11-02**: Latest Session - All 6 Advanced Features Complete ✅
-  - ✅ **Task 1 (OpenAI Integration)**: Integrated Replit AI with GPT-4o-mini, no API key required, test connection verified
-  - ✅ **Task 2 (AI Enhancement Backend)**: AI fields added to schema (aiEnhanced, confidenceScore, chargeCategories, normalizedCharges, riskLevel), AI service module with batch processing and fallback logic
-  - ✅ **Task 3 (AI Scraping Workflow)**: Real-time AI progress tracking persisted to database, enableAI toggle, 28 records enhanced successfully, error handling ensures state finalization
-  - ✅ **Task 4 (Python Scraper Microservice)**: Python scraper with BeautifulSoup4, Node.js integration via spawn(), Miami-Dade proof-of-concept with form submission/POST requests/ASP.NET parsing, robust fallback to mock data
-  - ✅ **Task 5 (Scraping Wizard UI)**: Multi-step wizard with 3 steps (County Selection → AI Settings → Review & Launch), progress indicator, full FLORIDA_COUNTIES support, export settings UI
-  - ✅ **Task 6 (Analytics Dashboard)**: Recharts visualizations (4 charts), date range filters, CSV/JSON export, AI enhancement stats, navigation added
+- **2025-11-02**: Latest Session - CRM Integrations Complete ✅
+  - ✅ **CRM Database Schema**: Added 3 tables (crmProspects, outreachCampaigns, scheduledMeetings) with proper types and relationships
+  - ✅ **PhantomBuster Integration**: Prospect discovery service with LinkedIn/Facebook scraping, mock fallback, email-based deduplication
+  - ✅ **Calendly Integration**: Meeting scheduling service with event types, scheduling links, requires CALENDLY_API_KEY + CALENDLY_USER_URI
+  - ✅ **Google Sheets Integration**: Bi-directional sync for prospects and arrest records, token-based auth, appendProspects/appendArrestRecords methods
+  - ✅ **CRM API Routes**: 10+ endpoints for prospects CRUD, discovery, outreach, meetings, sheets sync with Zod validation
+  - ✅ **CRM Frontend**: Complete /crm page with 5 tabs (Prospects, Lead Form, Discovery, Meetings, Integrations), proper UI/UX
+  - ✅ **Backend Fixes**: Added updateProspectSchema, syncSheetsSchema, fixed async setTimeout, added deduplication, improved error handling
+  - ✅ **Service Hardening**: Calendly requires userUri validation, all services use mock fallbacks with proper logging
+  
+- **2025-11-02**: Earlier - All 6 Advanced Features Complete ✅
+  - ✅ OpenAI Integration, AI Enhancement Backend, AI Scraping Workflow
+  - ✅ Python Scraper Microservice (Miami-Dade proof-of-concept)
+  - ✅ Scraping Wizard UI, Analytics Dashboard
   - Previous Sessions: PostgreSQL migration, lead scoring (0-100), deduplication with fuzzy matching all completed
 
 ## Project Architecture
@@ -38,19 +47,28 @@ A professional B2B web application for scraping Florida arrest records and manag
 - **Algorithms**: Levenshtein distance for fuzzy matching
 
 ### Data Models
-1. **ArrestRecord**: Core arrest record data (name, charges, booking date, bond amount, demographics, facility, **leadScore**)
-2. **ScrapeJob**: Job tracking (counties, status, records found, duration)
+1. **ArrestRecord**: Core arrest record data (name, charges, booking date, bond amount, demographics, facility, **leadScore**, AI fields)
+2. **ScrapeJob**: Job tracking (counties, status, records found, duration, AI progress)
 3. **CRMSyncLog**: Export and sync history
 4. **DuplicateCandidate**: Duplicate detection tracking (recordId1, recordId2, confidenceScore, matchReasons, status)
+5. **CrmProspect** (NEW): Prospect management (fullName, email, company, phone, linkedinUrl, source, status, tags, notes, lastContactedAt)
+6. **OutreachCampaign** (NEW): Campaign tracking (name, platform, status, targetAudience, messageTemplate, sentCount, responseCount)
+7. **ScheduledMeeting** (NEW): Meeting tracking (prospectEmail, prospectName, meetingType, scheduledAt, calendlyEventUri, meetingUrl, status)
 
 ### Key Features
 - **Dashboard**: Real-time statistics, quick actions, recent jobs preview
 - **Records Management**: Comprehensive table with search, filtering, pagination, bulk selection, and **lead score badges**
-- **Job Monitoring**: Real-time job status tracking with progress indicators
+- **Job Monitoring**: Real-time job status tracking with progress indicators and AI enhancement status
 - **Export System**: CSV (PhantomBuster-compatible) and JSON export formats with **lead scores**
-- **Multi-County Scraping**: Support for 20 major Florida counties
+- **Multi-County Scraping**: Support for 20 major Florida counties with Python BeautifulSoup4 scrapers
 - **Lead Scoring System**: Automated 0-100 scoring based on charge severity (50%), bond amount (30%), demographics (20%)
 - **Duplicate Detection**: Fuzzy matching algorithm with confidence scores, side-by-side review UI, merge/dismiss workflow
+- **AI Enhancement**: GPT-4o-mini charge categorization, risk assessment, normalized charges, confidence scoring
+- **Analytics Dashboard**: 4 visualizations (records by county, lead score distribution, charge categories, jobs over time) with date filters
+- **CRM Prospect Discovery**: PhantomBuster LinkedIn/Facebook scraping with automated deduplication
+- **Lead Generation Form**: Capture leads from website with automated prospect creation
+- **Meeting Scheduling**: Calendly integration for automated demo/consultation booking
+- **Google Sheets Sync**: Bi-directional export of prospects and arrest records
 
 ### Florida Counties Supported
 Miami-Dade, Broward, Palm Beach, Hillsborough, Orange, Pinellas, Duval, Lee, Polk, Brevard, Volusia, Pasco, Seminole, Sarasota, Manatee, Collier, Osceola, Marion, Escambia, Lake
@@ -81,9 +99,24 @@ The application follows a professional B2B data application design approach base
 - `POST /api/duplicates/:id/merge` - Merge duplicate records (deletes duplicate, keeps primary)
 - `POST /api/duplicates/:id/dismiss` - Mark duplicate candidate as "not a match"
 
-### Analytics Endpoints (New!)
+### Analytics Endpoints
 - `GET /api/analytics?dateFrom=&dateTo=` - Get analytics data with optional date filtering
   - Returns: recordsByCounty, leadScoreDistribution, chargeCategoryDistribution, jobsOverTime, aiStats
+
+### CRM Endpoints (NEW!)
+- `GET /api/crm/prospects` - List all prospects (with optional status/source filters)
+- `POST /api/crm/prospects` - Create new prospect (validated with createProspectSchema)
+- `PATCH /api/crm/prospects/:id` - Update prospect (validated with updateProspectSchema)
+- `DELETE /api/crm/prospects/:id` - Delete prospect
+- `POST /api/crm/discover` - Launch PhantomBuster prospect discovery (LinkedIn/Facebook)
+- `POST /api/crm/outreach/send` - Send outreach email and create prospect
+- `GET /api/crm/campaigns` - List all outreach campaigns
+- `POST /api/crm/campaigns` - Create new outreach campaign
+- `GET /api/crm/meetings` - List scheduled meetings (with optional status filter)
+- `POST /api/crm/meetings/schedule` - Schedule Calendly meeting
+- `GET /api/crm/calendly/events` - Get Calendly event types
+- `POST /api/crm/sheets/sync-prospects` - Export prospects to Google Sheets (validated with syncSheetsSchema)
+- `POST /api/crm/sheets/sync-records` - Export arrest records to Google Sheets (validated with syncSheetsSchema)
 
 ## Deployment & Production
 The application is ready for deployment with all features tested and working:
@@ -134,22 +167,59 @@ Demonstrates production web scraping techniques:
 - Scraper architecture validated via fallback mechanism
 - Will work in production deployment with network access
 
+## CRM Integration Architecture (NEW!)
+
+### PhantomBuster Service
+- **Purpose**: Automated prospect discovery on LinkedIn and Facebook
+- **Features**: Agent launching, result fetching, profile extraction
+- **Deduplication**: Email-based deduplication before DB insertion
+- **Fallback**: Mock data generation when API key not set
+- **Required Env**: `PHANTOMBUSTER_API_KEY`
+
+### Calendly Service
+- **Purpose**: Automated meeting scheduling with prospects
+- **Features**: Get event types, create scheduling links, fetch scheduled events, cancel events
+- **Validation**: Requires both `CALENDLY_API_KEY` and `CALENDLY_USER_URI`
+- **Fallback**: Mock scheduling links and mock meeting data
+- **Required Env**: `CALENDLY_API_KEY`, `CALENDLY_USER_URI`
+
+### Google Sheets Service
+- **Purpose**: Bi-directional data sync for prospects and arrest records
+- **Features**: Append prospects, append arrest records, export analytics
+- **Auth**: Token-based authentication via `GOOGLE_SHEETS_TOKEN`
+- **Fallback**: Mock row addition when token not set
+- **Required Env**: `GOOGLE_SHEETS_TOKEN`
+
+### CRM Frontend (/crm)
+- **Prospects Tab**: Browse, filter, and manage prospect database
+- **Lead Form Tab**: Capture leads from website/landing page
+- **Discovery Tab**: Launch PhantomBuster LinkedIn searches
+- **Meetings Tab**: View Calendly scheduled meetings
+- **Integrations Tab**: Google Sheets sync controls
+
 ## Completed Features
-1. ✅ PostgreSQL database for persistent storage
+1. ✅ PostgreSQL database for persistent storage (7 tables)
 2. ✅ Python scraper infrastructure (Miami-Dade proof-of-concept complete, 5 counties need research)
 3. ✅ Lead scoring system (0-100 weighted algorithm)
 4. ✅ Duplicate detection (fuzzy matching with Levenshtein distance)
 5. ✅ AI enhancement with OpenAI GPT-4o-mini
 6. ✅ Scraping wizard UI with multi-step form
 7. ✅ Analytics dashboard with Recharts visualizations
+8. ✅ PhantomBuster integration (LinkedIn/Facebook prospect discovery)
+9. ✅ Calendly integration (meeting scheduling automation)
+10. ✅ Google Sheets integration (bi-directional data sync)
+11. ✅ CRM dashboard (/crm page with 5 tabs)
 
 ## Future Enhancements
-1. Add scheduled scraping capabilities (cron jobs)
-2. Complete production scrapers for all 67 Florida counties (research needed for each county's system)
-3. Auto-export workflow (wire wizard export settings to backend)
-4. Direct CRM integrations (Salesforce, HubSpot, Clio)
-5. User authentication and multi-tenant support
-6. Advanced analytics (time-series trends, predictive modeling)
+1. Extend deduplication beyond email (LinkedIn URL + company name matching)
+2. Add webhook support for PhantomBuster results (replace polling)
+3. Complete production scrapers for all 67 Florida counties (research needed for each county's system)
+4. Auto-export workflow (wire wizard export settings to backend)
+5. Direct CRM integrations (Salesforce, HubSpot, Clio)
+6. User authentication and multi-tenant support
+7. Advanced analytics (time-series trends, predictive modeling)
+8. Email automation (SendGrid/AWS SES integration for outreach)
+9. Add scheduled scraping capabilities (cron jobs)
 
 ## Development Notes
 - Frontend uses TanStack Query for all data fetching
