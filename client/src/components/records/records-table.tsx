@@ -13,6 +13,18 @@ import {
 import type { ArrestRecord } from "@shared/schema";
 import { format } from "date-fns";
 
+function getScoreBadgeVariant(score: number): 'default' | 'secondary' | 'destructive' {
+  if (score >= 70) return 'destructive'; // High priority (red)
+  if (score >= 40) return 'default'; // Medium priority (blue)
+  return 'secondary'; // Low priority (gray)
+}
+
+function getScoreLabel(score: number): string {
+  if (score >= 70) return 'High Priority';
+  if (score >= 40) return 'Medium Priority';
+  return 'Low Priority';
+}
+
 interface RecordsTableProps {
   records: ArrestRecord[];
   isLoading: boolean;
@@ -111,6 +123,9 @@ export function RecordsTable({
                   Bond Amount
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide text-foreground">
+                  Lead Score
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide text-foreground">
                   Actions
                 </th>
               </tr>
@@ -150,6 +165,15 @@ export function RecordsTable({
                   </td>
                   <td className="px-4 py-4 text-sm font-medium text-foreground">
                     {record.bondAmount || 'N/A'}
+                  </td>
+                  <td className="px-4 py-4">
+                    <Badge 
+                      variant={getScoreBadgeVariant(record.leadScore || 0)}
+                      className="font-semibold"
+                      data-testid={`badge-score-${record.id}`}
+                    >
+                      {record.leadScore || 0}
+                    </Badge>
                   </td>
                   <td className="px-4 py-4">
                     <Button
@@ -222,6 +246,15 @@ export function RecordsTable({
               <DetailField label="Gender" value={detailRecord.gender} />
               <DetailField label="Race" value={detailRecord.race} />
               <DetailField label="Bond Amount" value={detailRecord.bondAmount} />
+              <div>
+                <div className="text-sm font-semibold text-foreground mb-2">Lead Score</div>
+                <Badge 
+                  variant={getScoreBadgeVariant(detailRecord.leadScore || 0)}
+                  className="font-semibold text-base px-3 py-1"
+                >
+                  {detailRecord.leadScore || 0} - {getScoreLabel(detailRecord.leadScore || 0)}
+                </Badge>
+              </div>
               <div className="col-span-2">
                 <DetailField label="Charges" value={detailRecord.charges} />
               </div>

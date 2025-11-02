@@ -24,6 +24,7 @@ export const arrestRecords = pgTable("arrest_records", {
   rawData: text("raw_data"),
   crmContactId: text("crm_contact_id"),
   crmSyncDate: text("crm_sync_date"),
+  leadScore: integer("lead_score").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

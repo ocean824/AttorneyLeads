@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { calculateLeadScore } from "./lead-scoring";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard Stats
@@ -283,6 +284,15 @@ function generateMockArrestRecord(county: string): InsertArrestRecord {
   const releaseDate = Math.random() > 0.3 ? new Date(bookingDate.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000) : null;
 
   const bondAmount = Math.random() > 0.2 ? `$${(Math.floor(Math.random() * 50) + 1) * 500}` : "No Bond";
+  const selectedCharge = charges[Math.floor(Math.random() * charges.length)];
+
+  // Calculate lead score based on arrest details
+  const leadScore = calculateLeadScore({
+    charges: selectedCharge,
+    bondAmount,
+    age,
+    county,
+  });
 
   return {
     inmateId: `INM${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`,
@@ -291,7 +301,7 @@ function generateMockArrestRecord(county: string): InsertArrestRecord {
     lastName,
     bookingDate: bookingDate.toISOString(),
     releaseDate: releaseDate?.toISOString() || null,
-    charges: charges[Math.floor(Math.random() * charges.length)],
+    charges: selectedCharge,
     bondAmount,
     county,
     facility: facilities[Math.floor(Math.random() * facilities.length)],
@@ -303,6 +313,7 @@ function generateMockArrestRecord(county: string): InsertArrestRecord {
     rawData: null,
     crmContactId: null,
     crmSyncDate: null,
+    leadScore,
   };
 }
 
@@ -324,6 +335,7 @@ function generateCSV(records: any[]): string {
     "Age",
     "Gender",
     "Race",
+    "Lead Score",
     "Source URL",
   ];
 
@@ -341,6 +353,7 @@ function generateCSV(records: any[]): string {
     record.age || "",
     record.gender || "",
     record.race || "",
+    record.leadScore || "0",
     record.sourceUrl || "",
   ]);
 

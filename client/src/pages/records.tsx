@@ -24,7 +24,20 @@ export default function Records() {
     page: number;
     pageSize: number;
   }>({
-    queryKey: ["/api/records", { page, ...filters }],
+    queryKey: ["/api/records", page, filters],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        ...(filters.county && { county: filters.county }),
+        ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
+        ...(filters.dateTo && { dateTo: filters.dateTo }),
+        ...(filters.search && { search: filters.search }),
+      });
+      
+      const res = await fetch(`/api/records?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch records');
+      return res.json();
+    },
   });
 
   const handleExport = () => {
