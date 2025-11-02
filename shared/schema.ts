@@ -123,6 +123,102 @@ export const exportRecordsSchema = z.object({
 
 export type ExportRecordsRequest = z.infer<typeof exportRecordsSchema>;
 
+// CRM Prospects Table (for lead generation campaigns)
+export const crmProspects = pgTable("crm_prospects", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fullName: text("full_name").notNull(),
+  email: text("email"),
+  company: text("company"),
+  phone: text("phone"),
+  linkedinUrl: text("linkedin_url"),
+  source: text("source").notNull(), // phantombuster, manual, form_submission
+  status: text("status").notNull().default("new"), // new, contacted, qualified, converted, rejected
+  tags: text("tags"), // JSON array of tags
+  notes: text("notes"),
+  lastContactedAt: timestamp("last_contacted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Outreach Campaigns Table
+export const outreachCampaigns = pgTable("outreach_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  template: text("template").notNull(), // Message template with {{tokens}}
+  status: text("status").notNull().default("draft"), // draft, active, paused, completed
+  sentCount: integer("sent_count").default(0).notNull(),
+  responseCount: integer("response_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Scheduled Meetings Table (Calendly integration)
+export const scheduledMeetings = pgTable("scheduled_meetings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  prospectId: text("prospect_id"), // Reference to crm_prospects
+  prospectEmail: text("prospect_email").notNull(),
+  prospectName: text("prospect_name").notNull(),
+  meetingType: text("meeting_type").notNull().default("demo"), // demo, consultation, follow_up
+  calendlyEventUri: text("calendly_event_uri"), // Calendly event ID
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  status: text("status").notNull().default("scheduled"), // scheduled, completed, cancelled, no_show
+  meetingUrl: text("meeting_url"), // Zoom/Google Meet link
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Insert Schemas for CRM tables
+export const insertCrmProspectSchema = createInsertSchema(crmProspects).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertOutreachCampaignSchema = createInsertSchema(outreachCampaigns).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for CRM tables
+export type CrmProspect = typeof crmProspects.$inferSelect;
+export type InsertCrmProspect = z.infer<typeof insertCrmProspectSchema>;
+
+export type OutreachCampaign = typeof outreachCampaigns.$inferSelect;
+export type InsertOutreachCampaign = z.infer<typeof insertOutreachCampaignSchema>;
+
+export type ScheduledMeeting = typeof scheduledMeetings.$inferSelect;
+export type InsertScheduledMeeting = z.infer<typeof insertScheduledMeetingSchema>;
+
+// API Schemas for CRM endpoints
+export const createProspectSchema = z.object({
+  fullName: z.string().min(1),
+  email: z.string().email().optional(),
+  company: z.string().optional(),
+  phone: z.string().optional(),
+  source: z.string().default("manual"),
+  tags: z.array(z.string()).optional(),
+});
+
+export const sendOutreachSchema = z.object({
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  company: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export const scheduleMeetingSchema = z.object({
+  prospectEmail: z.string().email(),
+  prospectName: z.string().min(1),
+  meetingType: z.enum(["demo", "consultation", "follow_up"]).default("demo"),
+  scheduledAt: z.string(), // ISO date string
+});
+
+export type CreateProspectRequest = z.infer<typeof createProspectSchema>;
+export type SendOutreachRequest = z.infer<typeof sendOutreachSchema>;
+export type ScheduleMeetingRequest = z.infer<typeof scheduleMeetingSchema>;
+
 // Florida Counties (commonly used for attorney leads)
 export const FLORIDA_COUNTIES = [
   "Miami-Dade",
