@@ -36,6 +36,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Analytics Data
+  app.get("/api/analytics", async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+
+      const [
+        recordsByCounty,
+        leadScoreDistribution,
+        chargeCategoryDistribution,
+        jobsOverTime,
+        aiStats,
+      ] = await Promise.all([
+        storage.getRecordsByCounty(dateFrom, dateTo),
+        storage.getLeadScoreDistribution(dateFrom, dateTo),
+        storage.getChargeCategoryDistribution(dateFrom, dateTo),
+        storage.getJobsOverTime(dateFrom, dateTo),
+        storage.getAIEnhancementStats(dateFrom, dateTo),
+      ]);
+
+      res.json({
+        recordsByCounty,
+        leadScoreDistribution,
+        chargeCategoryDistribution,
+        jobsOverTime,
+        aiStats,
+      });
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics data" });
+    }
+  });
+
   // Start Scraping Job
   app.post("/api/scrape/start", async (req, res) => {
     try {

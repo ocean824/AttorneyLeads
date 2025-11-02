@@ -60,6 +60,13 @@ export interface IStorage {
     updates: Partial<Omit<DuplicateCandidate, "id" | "createdAt">>
   ): Promise<DuplicateCandidate | undefined>;
   getPendingDuplicatesCount(): Promise<number>;
+
+  // Analytics
+  getRecordsByCounty(dateFrom?: string, dateTo?: string): Promise<Array<{ county: string; count: number }>>;
+  getLeadScoreDistribution(dateFrom?: string, dateTo?: string): Promise<Array<{ range: string; count: number }>>;
+  getChargeCategoryDistribution(dateFrom?: string, dateTo?: string): Promise<Array<{ category: string; count: number }>>;
+  getJobsOverTime(dateFrom?: string, dateTo?: string): Promise<Array<{ date: string; total: number; completed: number; failed: number }>>;
+  getAIEnhancementStats(dateFrom?: string, dateTo?: string): Promise<{ totalRecords: number; aiEnhanced: number; avgConfidenceScore: number }>;
 }
 
 export class DbStorage implements IStorage {
@@ -318,6 +325,133 @@ export class DbStorage implements IStorage {
       .where(eq(duplicateCandidates.status, "pending"));
 
     return count;
+  }
+
+  // Analytics Methods
+  async getRecordsByCounty(dateFrom?: string, dateTo?: string): Promise<Array<{ county: string; count: number }>> {
+    const conditions = [];
+    if (dateFrom) conditions.push(gte(arrestRecords.scrapedDate, dateFrom));
+    if (dateTo) conditions.push(lte(arrestRecords.scrapedDate, dateTo));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const result = await db
+      .select({
+        county: arrestRecords.county,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(arrestRecords)
+      .where(whereClause)
+      .groupBy(arrestRecords.county)
+      .orderBy(desc(sql<number>`count(*)`));
+
+    return result;
+  }
+
+  async getLeadScoreDistribution(dateFrom?: string, dateTo?: string): Promise<Array<{ range: string; count: number }>> {
+    const conditions = [];
+    if (dateFrom) conditions.push(gte(arrestRecords.scrapedDate, dateFrom));
+    if (dateTo) conditions.push(lte(arrestRecords.scrapedDate, dateTo));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const result = await db
+      .select({
+        range: sql<string>`
+          CASE 
+            WHEN ${arrestRecords.leadScore} >= 80 THEN '80-100'
+            WHEN ${arrestRecords.leadScore} >= 60 THEN '60-79'
+            WHEN ${arrestRecords.leadScore} >= 40 THEN '40-59'
+            WHEN ${arrestRecords.leadScore} >= 20 THEN '20-39'
+            ELSE '0-19'
+          END
+        `,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(arrestRecords)
+      .where(whereClause)
+      .groupBy(sql`
+        CASE 
+          WHEN ${arrestRecords.leadScore} >= 80 THEN '80-100'
+          WHEN ${arrestRecords.leadScore} >= 60 THEN '60-79'
+          WHEN ${arrestRecords.leadScore} >= 40 THEN '40-59'
+          WHEN ${arrestRecords.leadScore} >= 20 THEN '20-39'
+          ELSE '0-19'
+        END
+      `);
+
+    const ranges = ['80-100', '60-79', '40-59', '20-39', '0-19'];
+    return ranges.map(range => {
+      const found = result.find(r => r.range === range);
+      return { range, count: found?.count || 0 };
+    });
+  }
+
+  async getChargeCategoryDistribution(dateFrom?: string, dateTo?: string): Promise<Array<{ category: string; count: number }>> {
+    const conditions = [eq(arrestRecords.aiEnhanced, 1)];
+    if (dateFrom) conditions.push(gte(arrestRecords.scrapedDate, dateFrom));
+    if (dateTo) conditions.push(lte(arrestRecords.scrapedDate, dateTo));
+
+    const records = await db
+      .select({ chargeCategories: arrestRecords.chargeCategories })
+      .from(arrestRecords)
+      .where(and(...conditions));
+
+    const categoryCount: Record<string, number> = {};
+    records.forEach(record => {
+      if (record.chargeCategories) {
+        try {
+          const categories = JSON.parse(record.chargeCategories) as string[];
+          categories.forEach(cat => {
+            categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+          });
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+    });
+
+    return Object.entries(categoryCount)
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  async getJobsOverTime(dateFrom?: string, dateTo?: string): Promise<Array<{ date: string; total: number; completed: number; failed: number }>> {
+    const conditions = [];
+    if (dateFrom) conditions.push(gte(sql<string>`${scrapeJobs.startedAt}::date::text`, dateFrom));
+    if (dateTo) conditions.push(lte(sql<string>`${scrapeJobs.startedAt}::date::text`, dateTo));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const result = await db
+      .select({
+        date: sql<string>`${scrapeJobs.startedAt}::date::text`,
+        total: sql<number>`count(*)::int`,
+        completed: sql<number>`count(CASE WHEN ${scrapeJobs.status} = 'completed' THEN 1 END)::int`,
+        failed: sql<number>`count(CASE WHEN ${scrapeJobs.status} = 'failed' THEN 1 END)::int`,
+      })
+      .from(scrapeJobs)
+      .where(whereClause)
+      .groupBy(sql`${scrapeJobs.startedAt}::date`)
+      .orderBy(sql`${scrapeJobs.startedAt}::date`);
+
+    return result;
+  }
+
+  async getAIEnhancementStats(dateFrom?: string, dateTo?: string): Promise<{ totalRecords: number; aiEnhanced: number; avgConfidenceScore: number }> {
+    const conditions = [];
+    if (dateFrom) conditions.push(gte(arrestRecords.scrapedDate, dateFrom));
+    if (dateTo) conditions.push(lte(arrestRecords.scrapedDate, dateTo));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [stats] = await db
+      .select({
+        totalRecords: sql<number>`count(*)::int`,
+        aiEnhanced: sql<number>`count(CASE WHEN ${arrestRecords.aiEnhanced} = 1 THEN 1 END)::int`,
+        avgConfidenceScore: sql<number>`COALESCE(AVG(CASE WHEN ${arrestRecords.confidenceScore} IS NOT NULL THEN ${arrestRecords.confidenceScore} END), 0)::int`,
+      })
+      .from(arrestRecords)
+      .where(whereClause);
+
+    return stats;
   }
 }
 
