@@ -6,6 +6,7 @@ import {
   exportRecordsSchema,
   FLORIDA_COUNTIES,
   type InsertArrestRecord,
+  type ArrestRecord,
 } from "@shared/schema";
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -276,6 +277,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error dismissing duplicate:", error);
       res.status(500).json({ error: "Failed to dismiss duplicate" });
+    }
+  });
+
+  // AI Enhancement Endpoints
+  app.post("/api/ai/enhance", async (req, res) => {
+    try {
+      const { recordIds } = z.object({
+        recordIds: z.array(z.string()).min(1, "At least one record ID required"),
+      }).parse(req.body);
+
+      const { enhanceRecordsBatch } = await import("./ai-service");
+      
+      // Fetch records to enhance
+      const records = await Promise.all(
+        recordIds.map(id => storage.getArrestRecord(id))
+      );
+      
+      const validRecords = records.filter((r): r is ArrestRecord => r !== undefined);
+      
+      if (validRecords.length === 0) {
+        return res.status(404).json({ error: "No valid records found" });
+      }
+
+      // Enhance records with AI
+      const enhancedData = await enhanceRecordsBatch(validRecords);
+      
+      // Update records with AI enhancement data
+      let updatedCount = 0;
+      for (const [recordId, enhancement] of Array.from(enhancedData)) {
+        await storage.updateArrestRecord(recordId, {
+          aiEnhanced: 1,
+          confidenceScore: enhancement.confidenceScore,
+          chargeCategories: JSON.stringify(enhancement.chargeCategories),
+          normalizedCharges: enhancement.normalizedCharges,
+          riskLevel: enhancement.riskLevel,
+        });
+        updatedCount++;
+      }
+
+      res.json({
+        message: `Successfully enhanced ${updatedCount} records`,
+        enhancedCount: updatedCount,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors[0].message });
+      } else {
+        console.error("Error enhancing records:", error);
+        res.status(500).json({ error: "Failed to enhance records" });
+      }
+    }
+  });
+
+  app.get("/api/ai/test", async (req, res) => {
+    try {
+      const { testAIConnection } = await import("./ai-service");
+      const isConnected = await testAIConnection();
+      
+      res.json({
+        connected: isConnected,
+        provider: "OpenAI (Replit AI Integrations)",
+        model: "gpt-4o-mini",
+      });
+    } catch (error) {
+      console.error("AI test failed:", error);
+      res.status(500).json({ connected: false, error: "Connection test failed" });
     }
   });
 

@@ -25,6 +25,11 @@ export const arrestRecords = pgTable("arrest_records", {
   crmContactId: text("crm_contact_id"),
   crmSyncDate: text("crm_sync_date"),
   leadScore: integer("lead_score").default(0).notNull(),
+  aiEnhanced: integer("ai_enhanced").default(0).notNull(), // 0 = false, 1 = true (SQLite compatibility)
+  confidenceScore: integer("confidence_score"), // 0-100 data quality score
+  chargeCategories: text("charge_categories"), // JSON array of charge classifications
+  normalizedCharges: text("normalized_charges"), // AI-standardized charge text
+  riskLevel: text("risk_level"), // low, medium, high
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -35,6 +40,8 @@ export const scrapeJobs = pgTable("scrape_jobs", {
   counties: text("counties").notNull(), // Comma-separated county names
   status: text("status").notNull().default("pending"), // pending, running, completed, failed
   recordsFound: integer("records_found").default(0).notNull(),
+  aiEnhanced: integer("ai_enhanced").default(1).notNull(), // 0 = false, 1 = true
+  aiProcessed: integer("ai_processed").default(0).notNull(), // Count of AI-enhanced records
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),

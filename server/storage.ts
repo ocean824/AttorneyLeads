@@ -28,6 +28,10 @@ export interface IStorage {
   getArrestRecord(id: string): Promise<ArrestRecord | undefined>;
   createArrestRecord(record: InsertArrestRecord): Promise<ArrestRecord>;
   createArrestRecords(records: InsertArrestRecord[]): Promise<ArrestRecord[]>;
+  updateArrestRecord(
+    id: string,
+    updates: Partial<Omit<ArrestRecord, "id" | "createdAt">>
+  ): Promise<ArrestRecord | undefined>;
   deleteArrestRecord(id: string): Promise<boolean>;
   getTotalRecordsCount(): Promise<number>;
   getLastScrapeDate(): Promise<string | null>;
@@ -146,6 +150,19 @@ export class DbStorage implements IStorage {
       .returning();
 
     return records;
+  }
+
+  async updateArrestRecord(
+    id: string,
+    updates: Partial<Omit<ArrestRecord, "id" | "createdAt">>
+  ): Promise<ArrestRecord | undefined> {
+    const result = await db
+      .update(arrestRecords)
+      .set(updates)
+      .where(eq(arrestRecords.id, id))
+      .returning();
+
+    return result[0];
   }
 
   async deleteArrestRecord(id: string): Promise<boolean> {
