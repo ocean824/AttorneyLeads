@@ -106,6 +106,7 @@ export type InsertDuplicateCandidate = z.infer<typeof insertDuplicateCandidateSc
 // API Request/Response Types
 export const startScrapeSchema = z.object({
   counties: z.array(z.string()).min(1, "At least one county must be selected"),
+  enableAI: z.boolean().default(true), // Enable AI enhancement by default
 });
 
 export type StartScrapeRequest = z.infer<typeof startScrapeSchema>;

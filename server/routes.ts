@@ -46,17 +46,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         counties: validatedData.counties.join(","),
         status: "running",
         recordsFound: 0,
+        aiEnhanced: validatedData.enableAI ? 1 : 0,
+        aiProcessed: 0,
         completedAt: null,
         errorMessage: null,
       });
 
       // Simulate scraping with mock data generation
-      simulateScraping(job.id, validatedData.counties);
+      simulateScraping(job.id, validatedData.counties, validatedData.enableAI);
 
       res.json({
         jobId: job.jobId,
-        message: `Scraping started for ${validatedData.counties.length} counties`,
-        estimatedTime: "2-5 minutes",
+        message: `Scraping started for ${validatedData.counties.length} counties${validatedData.enableAI ? ' with AI enhancement' : ''}`,
+        estimatedTime: validatedData.enableAI ? "3-7 minutes" : "2-5 minutes",
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -351,9 +353,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 // Helper function to simulate scraping
-async function simulateScraping(jobId: string, counties: string[]) {
+async function simulateScraping(jobId: string, counties: string[], enableAI: boolean = true) {
   // Simulate delay
   await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  let mockRecords: InsertArrestRecord[] = [];
+  let createdRecords: ArrestRecord[] = [];
+  let aiProcessedCount = 0;
 
   try {
     const job = await storage.getScrapeJob(jobId);
@@ -361,7 +367,6 @@ async function simulateScraping(jobId: string, counties: string[]) {
 
     // Generate mock arrest records
     const recordsPerCounty = Math.floor(Math.random() * 20) + 10; // 10-30 records per county
-    const mockRecords: InsertArrestRecord[] = [];
 
     for (const county of counties) {
       for (let i = 0; i < recordsPerCounty; i++) {
@@ -370,19 +375,52 @@ async function simulateScraping(jobId: string, counties: string[]) {
     }
 
     // Create records in storage
-    await storage.createArrestRecords(mockRecords);
+    createdRecords = await storage.createArrestRecords(mockRecords);
 
-    // Update job status
+    // AI Enhancement (if enabled)
+    if (enableAI && createdRecords.length > 0) {
+      const { enhanceRecordsBatch } = await import("./ai-service");
+      
+      console.log(`[Job ${jobId}] Enhancing ${createdRecords.length} records with AI...`);
+      
+      const enhancedData = await enhanceRecordsBatch(createdRecords, async (current, total) => {
+        console.log(`[Job ${jobId}] AI Enhancement Progress: ${current}/${total}`);
+        // Update job progress in real-time for UI tracking
+        await storage.updateScrapeJob(jobId, {
+          aiProcessed: current,
+        });
+      });
+      
+      // Update records with AI enhancement data
+      for (const [recordId, enhancement] of Array.from(enhancedData)) {
+        await storage.updateArrestRecord(recordId, {
+          aiEnhanced: 1,
+          confidenceScore: enhancement.confidenceScore,
+          chargeCategories: JSON.stringify(enhancement.chargeCategories),
+          normalizedCharges: enhancement.normalizedCharges,
+          riskLevel: enhancement.riskLevel,
+        });
+        aiProcessedCount++;
+      }
+      
+      console.log(`[Job ${jobId}] AI Enhancement Complete: ${aiProcessedCount} records enhanced`);
+    }
+
+    // Update job with successful completion
     await storage.updateScrapeJob(jobId, {
       status: "completed",
       recordsFound: mockRecords.length,
+      aiProcessed: enableAI ? aiProcessedCount : 0,
       completedAt: new Date(),
     });
   } catch (error) {
     console.error("Error in simulated scraping:", error);
+    // Always finalize job state on error
     await storage.updateScrapeJob(jobId, {
       status: "failed",
-      errorMessage: "Scraping simulation failed",
+      recordsFound: mockRecords.length,
+      aiProcessed: aiProcessedCount,
+      errorMessage: error instanceof Error ? error.message : "Scraping simulation failed",
       completedAt: new Date(),
     });
   }
