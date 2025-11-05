@@ -5,8 +5,8 @@
  * For production multi-node deployments, replace with Redis or similar.
  */
 
-import type { Request, Response, NextFunction } from "express";
-import { routeRateLimits, type RateLimitConfig } from "../../config/rateLimits";
+import type { Request, Response, NextFunction} from "express";
+import { getRateLimitForRoute, globalRateLimit } from "../../config/rateLimits";
 
 type BucketKey = string;
 
@@ -17,33 +17,6 @@ interface BucketState {
 
 // In-memory storage of rate limit buckets
 const buckets = new Map<BucketKey, BucketState>();
-
-/**
- * Create a route key for rate limit lookup
- */
-function makeRouteKey(method: string, path: string): string {
-  return `${method.toUpperCase()} ${path}`;
-}
-
-/**
- * Get rate limit config for a route, falling back to DEFAULT
- */
-function getConfig(method: string, path: string): RateLimitConfig {
-  const key = makeRouteKey(method, path);
-  
-  if (routeRateLimits[key]) {
-    return routeRateLimits[key];
-  }
-  
-  // Check for wildcard patterns
-  // e.g., "GET /api/records/:id" matches "GET /api/records/*"
-  const wildcardKey = key.replace(/\/[^/]+$/, "/*");
-  if (routeRateLimits[wildcardKey]) {
-    return routeRateLimits[wildcardKey];
-  }
-  
-  return routeRateLimits.DEFAULT;
-}
 
 /**
  * Extract client IP from request
@@ -85,10 +58,13 @@ setInterval(cleanupBuckets, 5 * 60 * 1000);
 export function rateLimiter(req: Request, res: Response, next: NextFunction) {
   const now = Date.now();
   const ip = getClientIp(req);
-  const config = getConfig(req.method, req.path);
   
-  // Create unique bucket key
-  const bucketKey: BucketKey = `${ip}:${req.method}:${req.path}`;
+  // Get rate limit config and pattern
+  const { config, pattern } = getRateLimitForRoute(req.path);
+  
+  // CRITICAL: Use pattern (not literal path) in bucket key to prevent ID rotation bypass
+  // This ensures /api/records/1 and /api/records/2 share the same bucket
+  const bucketKey: BucketKey = `${ip}:${req.method}:${pattern}`;
   const existing = buckets.get(bucketKey);
 
   // First request in window

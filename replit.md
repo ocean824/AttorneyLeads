@@ -20,7 +20,17 @@ A professional B2B web application for scraping Florida arrest records and manag
 - Application running without errors on port 5000
 
 ## Recent Changes
-- **2025-11-02**: Latest Session - CRM Integrations Complete ✅
+- **2025-11-05**: Latest Session - Observability & Security Hardening Complete ✅
+  - ✅ **Observability Endpoints**: /healthz (liveness), /readyz (readiness), /metrics (Prometheus)
+  - ✅ **Structured Logging**: JSON logging with PII redaction, request IDs, automatic sensitive data masking
+  - ✅ **Security Hardening**: CSP, X-Frame-Options, HSTS-ready headers, comprehensive middleware
+  - ✅ **Rate Limiting**: Route-specific limits, IP-based, sliding window, pattern-based buckets (prevents ID rotation bypass)
+  - ✅ **Middleware Integration**: Logger → Security Headers → Rate Limiter → Routes (proper ordering)
+  - ✅ **Documentation**: Complete SECURITY.md, updated OpenAPI spec with observability endpoints
+  - ✅ **Utility Scripts**: first-run.ts (automated setup), envDoctor.ts, dbReset.ts, smoke-test.ts
+  - ✅ **Production Ready**: All endpoints tested, structured logs working, metrics validated
+
+- **2025-11-02**: Earlier Session - CRM Integrations Complete ✅
   - ✅ **CRM Database Schema**: Added 3 tables (crmProspects, outreachCampaigns, scheduledMeetings) with proper types and relationships
   - ✅ **PhantomBuster Integration**: Prospect discovery service with LinkedIn/Facebook scraping, mock fallback, email-based deduplication
   - ✅ **Calendly Integration**: Meeting scheduling service with event types, scheduling links, requires CALENDLY_API_KEY + CALENDLY_USER_URI
@@ -82,6 +92,11 @@ The application follows a professional B2B data application design approach base
 - **Interactions**: Subtle hover states, loading skeletons, toast notifications
 
 ## API Endpoints (Implemented ✅)
+
+### Observability Endpoints (NEW! ✅)
+- `GET /healthz` - Liveness probe (basic DB connectivity check)
+- `GET /readyz` - Readiness probe (detailed checks: DB counts, env vars, integration status)
+- `GET /metrics` - Prometheus metrics (4 gauges: up, records_total, jobs_total, ai_enhanced_total)
 
 ### Core Endpoints
 - `GET /api/stats` - Dashboard statistics (total records, active jobs, last scrape date, export count)
@@ -209,6 +224,10 @@ Demonstrates production web scraping techniques:
 9. ✅ Calendly integration (meeting scheduling automation)
 10. ✅ Google Sheets integration (bi-directional data sync)
 11. ✅ CRM dashboard (/crm page with 5 tabs)
+12. ✅ **Observability infrastructure** (/healthz, /readyz, /metrics with Prometheus format)
+13. ✅ **Structured logging** (JSON output, PII redaction, request tracing)
+14. ✅ **Security hardening** (CSP, security headers, rate limiting, SECURITY.md documentation)
+15. ✅ **Production utilities** (first-run initializer, environment doctor, smoke tests)
 
 ## Future Enhancements
 1. Extend deduplication beyond email (LinkedIn URL + company name matching)
@@ -227,3 +246,18 @@ Demonstrates production web scraping techniques:
 - Loading states and error handling built into all components
 - Responsive design tested for mobile, tablet, and desktop
 - Follows accessibility best practices (ARIA labels, keyboard navigation)
+
+## Observability & Security Infrastructure
+- **Structured Logging**: All HTTP requests logged as JSON with request IDs, automatic PII redaction
+- **Health Checks**: `/healthz` for liveness, `/readyz` for readiness with DB validation
+- **Metrics**: Prometheus-compatible `/metrics` endpoint (4 gauges tracked)
+- **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, HSTS-ready
+- **Rate Limiting**: IP-based, route-specific limits (prevents ID rotation bypass)
+- **PII Redaction**: Automatic masking of email, phone, SSN, API keys, tokens in all logs
+- **Middleware Stack**: Logger → Security Headers → Rate Limiter → Routes (proper ordering)
+
+## Production Deployment Utilities
+- `scripts/first-run.ts` - Automated DB setup + seeding, environment validation
+- `scripts/envDoctor.ts` - Environment variable checker with validation
+- `scripts/smoke-test.ts` - API endpoint health verification
+- `scripts/dbReset.ts` - Safe database reset with confirmation (⚠️ DESTRUCTIVE)

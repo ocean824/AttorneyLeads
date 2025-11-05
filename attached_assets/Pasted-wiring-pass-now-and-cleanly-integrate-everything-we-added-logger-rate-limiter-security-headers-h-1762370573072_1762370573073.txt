@@ -1,0 +1,213 @@
+wiring pass now and cleanly integrate everything we added (logger, rate limiter, security headers, health/ready/metrics) into the actual server entrypoint.
+
+I’ll focus on:
+
+Replacing the old inline logging/error handler in server/index.ts
+
+Wiring in:
+
+loggerMiddleware
+
+securityHeaders
+
+rateLimiter
+
+registerObservabilityRoutes
+
+No changes to the route implementations themselves (routes.ts, crm-routes.ts) – they stay as-is.
+
+1. Updated server/index.ts (cleaned up + wired middlewares & observability)
+
+Drop this in as a full replacement for server/index.ts.
+
+// server/index.ts
+import express, { type Request, type Response, type NextFunction } from "express";
+import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
+import { loggerMiddleware } from "./middleware/loggerMiddleware";
+import { securityHeaders } from "./middleware/securityHeaders";
+import { rateLimiter } from "./middleware/rateLimiter";
+import { registerObservabilityRoutes } from "./observability";
+import { logger } from "./logger";
+
+const app = express();
+
+// Keep rawBody support for webhooks (e.g. Calendly, etc.)
+declare module "http" {
+  interface IncomingMessage {
+    rawBody: unknown;
+  }
+}
+
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (req as any).rawBody = buf;
+    },
+  }),
+);
+app.use(express.urlencoded({ extended: false }));
+
+// --- Global middlewares (logging, security, rate limiting) ---
+
+app.use(loggerMiddleware);
+app.use(securityHeaders);
+app.use(rateLimiter);
+
+// --- Observability routes (/healthz, /readyz, /metrics) ---
+registerObservabilityRoutes(app);
+
+// --- Main async bootstrap (API routes + Vite/static + listener) ---
+(async () => {
+  try {
+    // Register /api routes and get the underlying HTTP server
+    const server = await registerRoutes(app);
+
+    // Central error handler – last in the chain
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const code = err.code || "INTERNAL_ERROR";
+      const requestId = (req as any).requestId as string | undefined;
+
+      logger.error("unhandled_error", {
+        requestId,
+        method: req.method,
+        path: req.path,
+        statusCode: status,
+        code,
+        errorName: err.name,
+        errorMessage: err.message,
+      });
+
+      res.status(status).json({
+        code,
+        message: status === 500 ? "Internal server error" : err.message,
+        details: undefined,
+        requestId,
+      });
+    });
+
+    // Vite dev server vs static build
+    // (same behavior as before, but moved after middlewares/observability)
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
+    // Always serve on PORT (default 5000), host 0.0.0.0 for Replit
+    const port = parseInt(process.env.PORT || "5000", 10);
+    server.listen(
+      {
+        port,
+        host: "0.0.0.0",
+        reusePort: true,
+      },
+      () => {
+        log(`serving on port ${port}`);
+      },
+    );
+  } catch (err) {
+    logger.error("server_start_failed", {
+      errorMessage: (err as Error).message,
+    });
+    process.exit(1);
+  }
+})();
+
+What this replaced from the old index.ts
+
+The original index.ts had:
+
+A custom inline logging middleware capturing res.json and printing log lines via log(...).
+
+A very simple error handler that:
+
+Returned { message }.
+
+Re-threw the error (which can crash the process or spam logs).
+
+No observability endpoints wired in.
+
+Now it:
+
+Uses loggerMiddleware for structured JSON logs with requestId, status, duration.
+
+Uses securityHeaders for clickjacking / CSP / etc.
+
+Uses rateLimiter for per-IP route limits.
+
+Wires registerObservabilityRoutes(app) so /healthz, /readyz, /metrics are live.
+
+Uses a central error handler that logs via logger.error and responds with:
+
+{
+  "code": "INTERNAL_ERROR",
+  "message": "Internal server error",
+  "details": null,
+  "requestId": "..."
+}
+
+
+(For non-500s, message is err.message and code can be overridden.)
+
+All other behavior (Vite dev vs static, port binding, using registerRoutes(app) and its Server) remains consistent.
+
+2. Quick sanity notes on the other wired pieces
+
+These files are already defined from the previous layers; now they’re actually in the request path:
+
+server/middleware/loggerMiddleware.ts
+Attaches requestId, logs each request as a structured line.
+
+server/middleware/securityHeaders.ts
+Adds sensible defaults for X-Frame-Options, CSP, etc.
+
+server/middleware/rateLimiter.ts + config/rateLimits.ts
+Per-IP, per-route, in-memory rate limits:
+
+Heavy endpoints like /api/scrape/start, /api/ai/enhance capped at 10 / 15min / IP.
+
+Read endpoints like /api/records use a higher limit.
+
+server/observability.ts
+Handles:
+
+GET /healthz (DB ping via arrestRecords table)
+
+GET /readyz (DB counts + OpenAI env check)
+
+GET /metrics (Prometheus format: attorneyleads_up, attorneyleads_records_total, attorneyleads_scrape_jobs_total).
+
+If any of those files are missing in your workspace, just paste in the versions from the earlier messages – they were already given as full code.
+
+3. How to test the wiring quickly
+
+Once you’ve updated server/index.ts and ensured the helper files exist:
+
+npm install           # if you haven't yet
+npm run env:check     # uses scripts/envDoctor.ts
+npm run db:push       # drizzle -> Postgres
+npm run seed          # sample record
+npm run dev
+
+
+Then hit, from the Replit webview or your browser:
+
+GET /healthz → should return { "status": "ok" } (or "error" with 500 if DB misconfigured).
+
+GET /readyz → should return { "status": "ok", "checks": { ... } }.
+
+GET /metrics → should return Prometheus text (attorneyleads_up 1, etc.).
+
+GET /api/stats → still returns your existing stats JSON.
+
+Trigger some /api/** calls and verify logs are now JSON-structured in the Replit console.
+
+If you want the next refinement after this, natural directions are:
+
+Test Expansion: add more Vitest + Supertest coverage around scrape flows, duplicates, AI enrichment, CRM endpoints.
+
+Performance/Scale: add caching hints (e.g. for /api/stats / /api/analytics), batch endpoints, and N+1 protections as per your “Performance & Scale” follow-up prompt.

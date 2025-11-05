@@ -145,22 +145,23 @@ export const globalRateLimit: RateLimitConfig = {
 
 /**
  * Get rate limit config for a specific route
+ * Returns both the config and the matched pattern for bucket keying
  */
-export function getRateLimitForRoute(route: string): RateLimitConfig {
+export function getRateLimitForRoute(route: string): { config: RateLimitConfig; pattern: string } {
   // Check for exact match first
   if (routeRateLimits[route]) {
-    return routeRateLimits[route];
+    return { config: routeRateLimits[route], pattern: route };
   }
 
   // Check for parameterized routes (e.g., /api/records/:id)
   for (const [pattern, config] of Object.entries(routeRateLimits)) {
     if (matchRoute(pattern, route)) {
-      return config;
+      return { config, pattern };
     }
   }
 
-  // Default to moderate preset
-  return rateLimitPresets.moderate;
+  // Default to moderate preset with generic pattern
+  return { config: rateLimitPresets.moderate, pattern: route };
 }
 
 /**

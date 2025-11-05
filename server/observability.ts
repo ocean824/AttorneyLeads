@@ -145,7 +145,7 @@ export function registerObservabilityRoutes(app: Express) {
       const [aiEnhancedRow] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(arrestRecords)
-        .where(sql`${arrestRecords.aiEnhanced} = true`);
+        .where(sql`${arrestRecords.aiEnhanced} = 1`);
 
       // Generate Prometheus metrics
       const lines = [
