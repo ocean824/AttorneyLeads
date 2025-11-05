@@ -12,6 +12,96 @@ servers:
     description: Replit development/production server
 
 paths:
+  # Observability Endpoints
+  /healthz:
+    get:
+      summary: Liveness probe
+      description: Basic health check - verifies application is alive and can connect to database
+      operationId: healthCheck
+      tags: [Observability]
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+        '500':
+          description: Application is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [error] }
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      description: Detailed readiness check - verifies application is ready to serve traffic
+      operationId: readinessCheck
+      tags: [Observability]
+      responses:
+        '200':
+          description: Application is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: object
+                        properties:
+                          connected: { type: boolean }
+                          recordCount: { type: integer }
+                          jobCount: { type: integer }
+                      environment:
+                        type: object
+                        properties:
+                          databaseUrl: { type: boolean }
+                          openaiKey: { type: boolean }
+                          phantombusterKey: { type: boolean }
+                          calendlyKey: { type: boolean }
+                          googleSheetsToken: { type: boolean }
+        '500':
+          description: Application is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [error] }
+                  checks: { type: object }
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes application metrics in Prometheus text format
+      operationId: getMetrics
+      tags: [Observability]
+      responses:
+        '200':
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP attorneyleads_up Application up status
+                  # TYPE attorneyleads_up gauge
+                  attorneyleads_up 1
+                  # HELP attorneyleads_records_total Total number of arrest records
+                  # TYPE attorneyleads_records_total gauge
+                  attorneyleads_records_total 150
+        '500':
+          description: Error generating metrics
+
   # Core Stats & Analytics
   /api/stats:
     get:
@@ -745,6 +835,8 @@ components:
       required: [spreadsheetId]
 
 tags:
+  - name: Observability
+    description: Health checks, readiness probes, and metrics for monitoring
   - name: Core
     description: Core application statistics and health
   - name: Analytics

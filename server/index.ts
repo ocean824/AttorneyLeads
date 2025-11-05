@@ -1,6 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { loggerMiddleware } from "./middleware/loggerMiddleware";
+import { securityHeaders } from "./middleware/securityHeaders";
+import { rateLimiter } from "./middleware/rateLimiter";
+import { registerObservabilityRoutes } from "./observability";
+import { logger } from "./logger";
 
 const app = express();
 
@@ -9,6 +14,8 @@ declare module 'http' {
     rawBody: unknown
   }
 }
+
+// Body parsing middleware
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
@@ -16,45 +23,34 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+// Observability & security middleware (applied to all routes)
+app.use(loggerMiddleware);
+app.use(securityHeaders);
+app.use(rateLimiter);
 
 (async () => {
+  // Register observability routes first (no auth required)
+  registerObservabilityRoutes(app);
+  
+  // Register application routes
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  // Global error handler
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Log error with context
+    logger.error("unhandled_error", {
+      requestId: req.requestId,
+      path: req.path,
+      method: req.method,
+      status,
+      errorMessage: message,
+      stack: err.stack,
+    });
+
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
