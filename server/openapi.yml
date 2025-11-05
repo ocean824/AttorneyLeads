@@ -1,0 +1,761 @@
+openapi: 3.1.0
+info:
+  title: AttorneyLeads API
+  description: AI-augmented lead generation and CRM platform for criminal defense attorneys
+  version: 1.0.0
+  contact:
+    name: AttorneyLeads Support
+    email: support@attorneyleads.com
+
+servers:
+  - url: /
+    description: Replit development/production server
+
+paths:
+  # Core Stats & Analytics
+  /api/stats:
+    get:
+      summary: Get summary statistics
+      operationId: getStats
+      tags: [Core]
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '500':
+          description: Failed to fetch statistics
+
+  /api/analytics:
+    get:
+      summary: Get analytics for records and jobs
+      operationId: getAnalytics
+      tags: [Analytics]
+      parameters:
+        - in: query
+          name: dateFrom
+          schema: { type: string, format: date }
+        - in: query
+          name: dateTo
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Analytics payload with charts data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+
+  # Scraping Endpoints
+  /api/scrape/start:
+    post:
+      summary: Start a scrape job
+      operationId: startScrape
+      tags: [Scraping]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartScrapeRequest'
+      responses:
+        '200':
+          description: Scrape job accepted and started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeStartResponse'
+        '400':
+          description: Validation error (empty counties, invalid format)
+        '500':
+          description: Failed to start scraping job
+
+  /api/scrape/jobs:
+    get:
+      summary: List all scrape jobs
+      operationId: listScrapeJobs
+      tags: [Scraping]
+      responses:
+        '200':
+          description: List of scrape jobs ordered by creation date
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScrapeJob' }
+
+  /api/scrape/status/{jobId}:
+    get:
+      summary: Get scrape job status
+      operationId: getScrapeStatus
+      tags: [Scraping]
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Scrape job details with AI progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeJob'
+        '404':
+          description: Job not found
+
+  # Arrest Records Endpoints
+  /api/records:
+    get:
+      summary: List arrest records with pagination
+      operationId: listRecords
+      tags: [Records]
+      parameters:
+        - in: query
+          name: county
+          schema: { type: string }
+        - in: query
+          name: dateFrom
+          schema: { type: string, format: date }
+        - in: query
+          name: dateTo
+          schema: { type: string, format: date }
+        - in: query
+          name: search
+          description: Search in fullName or bookingNumber
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Paginated arrest records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordListResponse'
+
+  /api/records/{id}:
+    get:
+      summary: Get a single arrest record
+      operationId: getRecord
+      tags: [Records]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Arrest record details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrestRecord'
+        '404':
+          description: Record not found
+    delete:
+      summary: Delete a single arrest record
+      operationId: deleteRecord
+      tags: [Records]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Record deleted successfully
+        '404':
+          description: Record not found
+
+  /api/records/bulk-export:
+    post:
+      summary: Bulk export records to CSV or JSON
+      operationId: bulkExport
+      tags: [Records]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkExportRequest'
+      responses:
+        '200':
+          description: Export file generated
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ArrestRecord' }
+
+  # Duplicate Detection Endpoints
+  /api/duplicates:
+    get:
+      summary: Get duplicate candidates
+      operationId: listDuplicates
+      tags: [Duplicates]
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, merged, dismissed]
+      responses:
+        '200':
+          description: Duplicate candidates with match reasons
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DuplicateCandidate' }
+
+  /api/duplicates/scan:
+    post:
+      summary: Trigger duplicate detection scan
+      operationId: scanDuplicates
+      tags: [Duplicates]
+      description: Runs fuzzy matching algorithm across all arrest records
+      responses:
+        '200':
+          description: Scan completed, candidates created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  candidatesFound: { type: integer }
+                  message: { type: string }
+
+  /api/duplicates/{id}/merge:
+    post:
+      summary: Merge duplicate records
+      operationId: mergeDuplicates
+      tags: [Duplicates]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      description: Deletes duplicate record, keeps primary, updates candidate status
+      responses:
+        '200':
+          description: Records merged successfully
+        '404':
+          description: Candidate not found
+
+  /api/duplicates/{id}/dismiss:
+    post:
+      summary: Dismiss a duplicate candidate
+      operationId: dismissDuplicate
+      tags: [Duplicates]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      description: Marks candidate as "not a match"
+      responses:
+        '200':
+          description: Candidate dismissed
+        '404':
+          description: Candidate not found
+
+  # AI Endpoints
+  /api/ai/test:
+    get:
+      summary: Test OpenAI connection
+      operationId: testAI
+      tags: [AI]
+      responses:
+        '200':
+          description: AI connection successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  message: { type: string }
+        '500':
+          description: AI connection failed
+
+  # CRM Prospects Endpoints
+  /api/crm/prospects:
+    get:
+      summary: List CRM prospects
+      operationId: listProspects
+      tags: [CRM]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: source
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of prospects
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CrmProspect' }
+    post:
+      summary: Create a new prospect
+      operationId: createProspect
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProspectRequest'
+      responses:
+        '201':
+          description: Prospect created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrmProspect'
+        '400':
+          description: Validation error
+
+  /api/crm/prospects/{id}:
+    patch:
+      summary: Update a prospect
+      operationId: updateProspect
+      tags: [CRM]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProspectRequest'
+      responses:
+        '200':
+          description: Prospect updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrmProspect'
+        '404':
+          description: Prospect not found
+    delete:
+      summary: Delete a prospect
+      operationId: deleteProspect
+      tags: [CRM]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Prospect deleted
+        '404':
+          description: Prospect not found
+
+  # PhantomBuster Discovery
+  /api/crm/discover:
+    post:
+      summary: Launch PhantomBuster prospect discovery
+      operationId: discoverProspects
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                searchQuery: { type: string }
+                location: { type: string }
+                platform: { type: string, enum: [linkedin, facebook], default: linkedin }
+              required: [searchQuery, location]
+      responses:
+        '200':
+          description: Discovery job started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  containerId: { type: string }
+                  estimatedTime: { type: string }
+
+  # Outreach & Campaigns
+  /api/crm/outreach/send:
+    post:
+      summary: Send outreach email
+      operationId: sendOutreach
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prospectEmail: { type: string }
+                prospectName: { type: string }
+                emailSubject: { type: string }
+                emailBody: { type: string }
+              required: [prospectEmail, prospectName]
+      responses:
+        '200':
+          description: Outreach sent and prospect created
+        '400':
+          description: Invalid email or missing fields
+
+  /api/crm/campaigns:
+    get:
+      summary: List outreach campaigns
+      operationId: listCampaigns
+      tags: [CRM]
+      responses:
+        '200':
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OutreachCampaign' }
+    post:
+      summary: Create a new campaign
+      operationId: createCampaign
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                platform: { type: string }
+                targetAudience: { type: string }
+                messageTemplate: { type: string }
+              required: [name, platform]
+      responses:
+        '201':
+          description: Campaign created
+
+  # Calendly Integration
+  /api/crm/meetings:
+    get:
+      summary: List scheduled meetings
+      operationId: listMeetings
+      tags: [CRM]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of meetings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScheduledMeeting' }
+
+  /api/crm/meetings/schedule:
+    post:
+      summary: Schedule a Calendly meeting
+      operationId: scheduleMeeting
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prospectEmail: { type: string }
+                prospectName: { type: string }
+                meetingType: { type: string }
+                eventUri: { type: string }
+              required: [prospectEmail, prospectName]
+      responses:
+        '201':
+          description: Meeting scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledMeeting'
+
+  /api/crm/calendly/events:
+    get:
+      summary: Get Calendly event types
+      operationId: getCalendlyEvents
+      tags: [CRM]
+      responses:
+        '200':
+          description: Available event types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    uri: { type: string }
+                    name: { type: string }
+                    scheduling_url: { type: string }
+
+  # Google Sheets Sync
+  /api/crm/sheets/sync-prospects:
+    post:
+      summary: Sync prospects to Google Sheets
+      operationId: syncProspectsToSheets
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SheetsSyncRequest'
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rowsAdded: { type: integer }
+                  message: { type: string }
+
+  /api/crm/sheets/sync-records:
+    post:
+      summary: Sync arrest records to Google Sheets
+      operationId: syncRecordsToSheets
+      tags: [CRM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SheetsSyncRequest'
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rowsAdded: { type: integer }
+                  message: { type: string }
+
+components:
+  schemas:
+    Stats:
+      type: object
+      properties:
+        totalRecords: { type: integer }
+        activeJobs: { type: integer }
+        lastScrapeDate: { type: string, format: date-time, nullable: true }
+        exportCount: { type: integer }
+
+    AnalyticsResponse:
+      type: object
+      properties:
+        recordsByCounty: { type: array }
+        leadScoreDistribution: { type: array }
+        chargeCategoryDistribution: { type: array }
+        jobsOverTime: { type: array }
+        aiStats:
+          type: object
+          properties:
+            totalEnriched: { type: integer }
+            totalRecords: { type: integer }
+            averageConfidence: { type: number }
+
+    StartScrapeRequest:
+      type: object
+      properties:
+        counties: { type: array, items: { type: string }, minItems: 1 }
+        enableAI: { type: boolean, default: false }
+      required: [counties]
+
+    ScrapeStartResponse:
+      type: object
+      properties:
+        jobId: { type: string }
+        message: { type: string }
+        estimatedDuration: { type: integer }
+
+    ScrapeJob:
+      type: object
+      properties:
+        id: { type: string }
+        jobId: { type: string }
+        counties: { type: array, items: { type: string } }
+        status: { type: string, enum: [pending, running, completed, failed] }
+        recordsFound: { type: integer }
+        aiEnrichmentEnabled: { type: boolean }
+        aiRecordsProcessed: { type: integer }
+        aiRecordsTotal: { type: integer }
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        duration: { type: integer, nullable: true }
+        errorMessage: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ArrestRecord:
+      type: object
+      properties:
+        id: { type: string }
+        jobId: { type: string, nullable: true }
+        fullName: { type: string }
+        bookingNumber: { type: string }
+        bookingDate: { type: string, format: date-time }
+        charges: { type: array, items: { type: string } }
+        bondAmount: { type: number, nullable: true }
+        age: { type: integer, nullable: true }
+        gender: { type: string, nullable: true }
+        race: { type: string, nullable: true }
+        county: { type: string }
+        facility: { type: string, nullable: true }
+        leadScore: { type: integer, minimum: 0, maximum: 100 }
+        scoreLabel: { type: string, enum: [Elite, Hot, Warm, Cold] }
+        aiEnhanced: { type: boolean }
+        chargeCategories: { type: array, items: { type: string } }
+        normalizedCharges: { type: array, items: { type: string } }
+        riskLevel: { type: string, enum: [High, Medium, Low], nullable: true }
+        confidenceScore: { type: number, minimum: 0, maximum: 100, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    RecordListResponse:
+      type: object
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/ArrestRecord' } }
+        total: { type: integer }
+
+    BulkExportRequest:
+      type: object
+      properties:
+        recordIds: { type: array, items: { type: string }, minItems: 1 }
+        format: { type: string, enum: [csv, json], default: csv }
+      required: [recordIds]
+
+    DuplicateCandidate:
+      type: object
+      properties:
+        id: { type: string }
+        recordId1: { type: string }
+        recordId2: { type: string }
+        confidenceScore: { type: number, minimum: 0, maximum: 100 }
+        matchReasons: { type: array, items: { type: string } }
+        status: { type: string, enum: [pending, merged, dismissed] }
+        createdAt: { type: string, format: date-time }
+
+    CrmProspect:
+      type: object
+      properties:
+        id: { type: string }
+        fullName: { type: string }
+        email: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        linkedinUrl: { type: string, nullable: true }
+        source: { type: string }
+        status: { type: string }
+        tags: { type: array, items: { type: string } }
+        notes: { type: string, nullable: true }
+        lastContactedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    CreateProspectRequest:
+      type: object
+      properties:
+        fullName: { type: string }
+        email: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        linkedinUrl: { type: string, nullable: true }
+        source: { type: string, default: manual }
+        status: { type: string, default: new }
+        tags: { type: array, items: { type: string } }
+        notes: { type: string, nullable: true }
+      required: [fullName]
+
+    UpdateProspectRequest:
+      type: object
+      properties:
+        fullName: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        company: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        linkedinUrl: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        tags: { type: array, items: { type: string }, nullable: true }
+        notes: { type: string, nullable: true }
+        lastContactedAt: { type: string, format: date-time, nullable: true }
+
+    OutreachCampaign:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        platform: { type: string }
+        status: { type: string }
+        targetAudience: { type: string, nullable: true }
+        messageTemplate: { type: string, nullable: true }
+        sentCount: { type: integer, default: 0 }
+        responseCount: { type: integer, default: 0 }
+        createdAt: { type: string, format: date-time }
+
+    ScheduledMeeting:
+      type: object
+      properties:
+        id: { type: string }
+        prospectId: { type: string, nullable: true }
+        prospectEmail: { type: string }
+        prospectName: { type: string }
+        meetingType: { type: string }
+        calendlyEventUri: { type: string, nullable: true }
+        scheduledAt: { type: string, format: date-time }
+        status: { type: string }
+        meetingUrl: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    SheetsSyncRequest:
+      type: object
+      properties:
+        spreadsheetId: { type: string }
+        sheetName: { type: string, default: Sheet1 }
+      required: [spreadsheetId]
+
+tags:
+  - name: Core
+    description: Core application statistics and health
+  - name: Analytics
+    description: Analytics and reporting endpoints
+  - name: Scraping
+    description: Florida arrest record scraping operations
+  - name: Records
+    description: Arrest record management
+  - name: Duplicates
+    description: Duplicate detection and merging
+  - name: AI
+    description: AI enrichment and testing
+  - name: CRM
+    description: CRM prospects, campaigns, meetings, and integrations
