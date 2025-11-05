@@ -70,6 +70,17 @@ export const routeRateLimits: Record<string, RateLimitConfig> = {
     message: "You can only start 20 scrape jobs per 15 minutes",
   },
 
+  // Read-only polling endpoints (lenient)
+  "/api/scrape/jobs": {
+    ...rateLimitPresets.lenient,
+    max: 500, // 500 requests per 15 minutes (frontend polls this)
+  },
+
+  "/api/stats": {
+    ...rateLimitPresets.lenient,
+    max: 500, // 500 requests per 15 minutes (dashboard polls this)
+  },
+
   "/api/duplicates/scan": {
     ...rateLimitPresets.strict,
     max: 5, // 5 scans per 15 minutes

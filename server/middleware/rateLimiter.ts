@@ -59,6 +59,11 @@ export function rateLimiter(req: Request, res: Response, next: NextFunction) {
   const now = Date.now();
   const ip = getClientIp(req);
   
+  // Skip rate limiting for observability endpoints
+  if (req.path === '/healthz' || req.path === '/readyz' || req.path === '/metrics') {
+    return next();
+  }
+  
   // Get rate limit config and pattern
   const { config, pattern } = getRateLimitForRoute(req.path);
   
