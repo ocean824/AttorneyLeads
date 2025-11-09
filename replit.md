@@ -19,7 +19,7 @@ Do not make changes to the `scripts/dbReset.ts` file.
 ### Key Features
 - **Data Acquisition**: Multi-county scraping for 20 major Florida counties using Python microservices (BeautifulSoup4).
 - **Lead Management**: Lead scoring (0-100 based on charge severity, bond, demographics), duplicate detection with fuzzy matching, and AI enhancement (GPT-4o-mini for charge categorization).
-- **Authentication & Security**: Complete session-based auth with password reset, TOTP 2FA with QR codes, backup codes, email/SMS OTP fallback, and enforced admin 2FA. AES-256-GCM encryption for TOTP secrets, bcrypt for passwords, SHA-256 for tokens.
+- **Authentication & Security**: Complete session-based auth with password reset, TOTP 2FA with QR codes, backup codes (with PDF export), email/SMS OTP fallback, enforced admin 2FA, admin hard-gate TOTP setup enforcement, and trusted device recognition (30-day 2FA bypass). AES-256-GCM encryption for TOTP secrets, bcrypt for passwords, SHA-256 for device tokens and backup tokens.
 - **CRM Integration**: Prospect discovery (LinkedIn/Facebook scraping), lead generation forms, automated meeting scheduling (Calendly), and bi-directional Google Sheets sync.
 - **Analytics & Monitoring**: Real-time job monitoring, analytics dashboard with Recharts visualizations, and comprehensive records management.
 - **Observability**: Liveness (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) endpoints.
@@ -29,6 +29,7 @@ Do not make changes to the `scripts/dbReset.ts` file.
 - **users**: User accounts with roles, encrypted TOTP secrets, and phone numbers
 - **password_reset_tokens**: Temporary password reset tokens
 - **user_backup_codes**: Hashed backup codes for 2FA fallback
+- **user_trusted_devices**: Trusted devices for 2FA bypass (30-day TTL)
 - **ArrestRecord**: Core data including leadScore and AI fields
 - **ScrapeJob**: Tracks scraping tasks
 - **CRMSyncLog**: Export/sync history
@@ -57,6 +58,9 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - `/api/auth/otp/verify` - Verify email/SMS OTP
 - `/api/auth/2fa/status` - Check 2FA status
 - `/api/auth/2fa/regenerate-backup` - Generate new backup codes
+- `/api/auth/backup-codes/pdf` - Export backup codes as PDF
+- `/api/auth/trusted-devices` - Trust current device (POST), list devices (GET)
+- `/api/auth/trusted-devices/:id` - Revoke trusted device (DELETE)
 - `/api/account/phone` - Update phone number
 
 **Core Operations:**
@@ -75,6 +79,9 @@ Prospects, discovery, outreach, meetings, sheets sync
 - `TOTP_ISSUER` - TOTP issuer name (e.g., "Attorney Leads")
 - `APP_URL` - Base application URL (e.g., http://localhost:5000)
 - `ENFORCE_2FA_FOR_ADMINS` - Set to "true" to require all admin users have 2FA enabled
+- `ENFORCE_ADMIN_TOTP_SETUP` - Set to "true" to require admin users complete TOTP setup before accessing fallback auth (prevents bypass)
+- `TRUSTED_DEVICE_DAYS` - Number of days a trusted device remains valid (default: 30)
+- `DEVICE_COOKIE_NAME` - Name of the device cookie (default: "device_token")
 
 **Optional:**
 - `SMTP_*` - Email configuration for real password reset/OTP emails (falls back to console logging)
@@ -90,5 +97,11 @@ Prospects, discovery, outreach, meetings, sheets sync
 
 ## Recent Changes (November 2025)
 - **Complete Authentication System**: Integrated comprehensive auth with password reset, TOTP 2FA, backup codes, email/SMS fallback, and admin 2FA enforcement
-- **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY
-- **Session Management**: PostgreSQL-backed sessions with proper cookie handling and logout flow
+- **Advanced Authentication Features** (Latest):
+  - **Admin Hard-Gate TOTP Setup**: `ENFORCE_ADMIN_TOTP_SETUP` flag prevents admins from using fallback authentication until TOTP is configured, eliminating 2FA bypass vulnerability
+  - **Trusted Device Recognition**: 30-day 2FA bypass for trusted devices with cryptographically secure tokens, httpOnly cookies, and SHA-256 hashing
+  - **Backup Codes PDF Export**: Download printable backup codes as PDF for secure offline storage
+  - **Devices Management**: `/account/devices` page to view and revoke trusted devices
+  - **Enhanced 2FA UX**: "Trust this device" checkbox on all 2FA verification pages
+- **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY, server-side device token generation and hashing
+- **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
