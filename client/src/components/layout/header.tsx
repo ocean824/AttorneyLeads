@@ -1,9 +1,18 @@
 import { Link, useLocation } from "wouter";
 import { Scale, Database, Activity, FileText, Copy, BarChart3, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function Header() {
+  const [me, setMe] = useState<{ email: string; role: "user" | "admin" } | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/whoami", { credentials: "include" })
+      .then(async (r) => (r.ok ? (await r.json()).user : null))
+      .then((u) => setMe(u))
+      .catch(() => setMe(null));
+  }, []);
+
   const [location] = useLocation();
 
   const navItems = [
@@ -49,6 +58,31 @@ export function Header() {
             );
           })}
         </nav>
+        <div className="flex items-center gap-2">
+          {me ? (
+            <>
+              {me.role === "admin" && (
+                <Link href="/admin/users">
+                  <Button variant="outline" className="mr-2">Admin</Button>
+                </Link>
+              )}
+              <span className="text-sm mr-2">{me.email}</span>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                  window.location.href = "/login";
+                }}
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Link href="/login">
+              <Button>Login</Button>
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

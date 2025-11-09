@@ -263,3 +263,33 @@ export const FLORIDA_COUNTIES = [
 ] as const;
 
 export type FloridaCounty = typeof FLORIDA_COUNTIES[number];
+
+// ===================== USERS / AUTH =====================
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("user"), // 'user' | 'admin'
+  isActive: integer("is_active").notNull().default(1),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+// Runtime validation helpers
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export const registerUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(12, "Password must be at least 12 characters"),
+  role: z.enum(["user", "admin"]).default("user"),
+});
+
+export type LoginRequest = z.infer<typeof loginSchema>;
+export type RegisterUserRequest = z.infer<typeof registerUserSchema>;

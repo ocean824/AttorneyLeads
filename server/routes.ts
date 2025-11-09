@@ -15,8 +15,12 @@ import { findDuplicates } from "./deduplication";
 import { spawn } from "child_process";
 import path from "path";
 import { registerCrmRoutes } from "./crm-routes";
+import { registerAuthRoutes } from "./auth-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth & Admin routes
+  registerAuthRoutes(app);
+
   // Register CRM routes
   registerCrmRoutes(app);
   // Dashboard Stats

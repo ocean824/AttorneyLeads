@@ -32,6 +32,9 @@ app.use(loggerMiddleware);
 app.use(securityHeaders);
 app.use(rateLimiter);
 
+// --- Session (cookie-based) ---
+import('./session').then(m => m.setupSession(app));
+
 // --- Observability routes (/healthz, /readyz, /metrics) ---
 registerObservabilityRoutes(app);
 
