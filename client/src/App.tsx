@@ -19,6 +19,7 @@ import Reset from "@/pages/reset";
 import TwoFA from "@/pages/2fa";
 import Fallback2FA from "@/pages/2fa-fallback";
 import AccountSecurity from "@/pages/account-security";
+import Devices from "@/pages/devices";
 
 function Router() {
   return (
@@ -30,6 +31,9 @@ function Router() {
       <Route path="/2fa-fallback" component={Fallback2FA} />
       <Route path="/account/security" >
         <PrivateRoute><AccountSecurity /></PrivateRoute>
+      </Route>
+      <Route path="/account/devices" >
+        <PrivateRoute><Devices /></PrivateRoute>
       </Route>
       <Route path="/" >
         <PrivateRoute><Dashboard /></PrivateRoute>

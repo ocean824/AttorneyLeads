@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
 
 type LoginMeta = {
@@ -18,6 +20,7 @@ export default function Fallback2FA() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [trustDevice, setTrustDevice] = useState(false);
 
   async function send(channel: "email" | "sms") {
     setSending(channel);
@@ -49,6 +52,23 @@ export default function Fallback2FA() {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return setError(j.error || "Invalid code");
+    
+    // If user wants to trust this device, register it
+    if (trustDevice) {
+      try {
+        const deviceLabel = `${navigator.platform || "Unknown"} - ${new Date().toLocaleDateString()}`;
+        await fetch("/api/auth/trusted-devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ label: deviceLabel }),
+        });
+      } catch (err) {
+        // Don't block login if device trust fails
+        console.error("Failed to trust device:", err);
+      }
+    }
+    
     navigate("/");
   }
 
@@ -63,8 +83,24 @@ export default function Fallback2FA() {
           </div>
           {sentTo && <div className="text-sm text-muted-foreground">Code sent to {sentTo}</div>}
           <div className="flex gap-2">
-            <Input placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} />
-            <Button onClick={verify}>Verify</Button>
+            <Input 
+              placeholder="6-digit code" 
+              value={code} 
+              onChange={(e) => setCode(e.target.value)}
+              data-testid="input-otp-code"
+            />
+            <Button onClick={verify} data-testid="button-verify">Verify</Button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="trust-device-fallback" 
+              checked={trustDevice}
+              onCheckedChange={(checked) => setTrustDevice(checked === true)}
+              data-testid="checkbox-trust-device"
+            />
+            <Label htmlFor="trust-device-fallback" className="text-sm cursor-pointer">
+              Trust this device for 30 days
+            </Label>
           </div>
           {error && <div className="text-sm text-red-600">{error}</div>}
           <div className="text-xs text-muted-foreground">Tip: You can also use a backup code.</div>

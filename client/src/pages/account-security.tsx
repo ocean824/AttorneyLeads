@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrivateRoute } from "@/components/auth/private-route";
 import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
+import { Download, Smartphone } from "lucide-react";
 
 export default function AccountSecurity() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -71,6 +73,40 @@ export default function AccountSecurity() {
     }
   }
 
+  async function downloadPDF() {
+    if (!codes || codes.length === 0) {
+      alert("Please generate backup codes first");
+      return;
+    }
+    
+    try {
+      const r = await fetch("/api/auth/backup-codes/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ codes }),
+      });
+      
+      if (!r.ok) {
+        alert("Failed to generate PDF");
+        return;
+      }
+      
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backup-codes-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF:", err);
+      alert("Failed to download PDF");
+    }
+  }
+
   return (
     <PrivateRoute>
       <div className="p-6 space-y-6 max-w-2xl">
@@ -111,7 +147,19 @@ export default function AccountSecurity() {
           <CardHeader><CardTitle>Backup Codes</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="text-sm text-muted-foreground">Generate one-time codes to use if you lose your device.</div>
-            <Button onClick={generateCodes}>Generate / Regenerate</Button>
+            <div className="flex gap-2">
+              <Button onClick={generateCodes} data-testid="button-generate-codes">Generate / Regenerate</Button>
+              {codes && codes.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  onClick={downloadPDF}
+                  data-testid="button-download-pdf"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              )}
+            </div>
             {codes && (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {codes.map((c) => (
@@ -119,6 +167,21 @@ export default function AccountSecurity() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Trusted Devices</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Manage devices that can skip 2FA verification for 30 days.
+            </div>
+            <Link href="/account/devices">
+              <Button variant="outline" data-testid="link-manage-devices">
+                <Smartphone className="mr-2 h-4 w-4" />
+                Manage Devices
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
