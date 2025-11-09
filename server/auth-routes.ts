@@ -110,19 +110,22 @@ export function registerAuthRoutes(app: Express) {
         return res.json({ message: "Users already exist" });
       }
       
-      // Accept credentials from request body, or use defaults for testing
-      const email = req.body?.email || "admin@attorneyleads.com";
-      const password = req.body?.password || "SecurePassword2024!";
+      // Accept credentials from env (for E2E tests), request body, or use defaults
+      const email = process.env.ADMIN_EMAIL || req.body?.email || "admin@attorneyleads.com";
+      const password = process.env.ADMIN_PASSWORD || req.body?.password || "SecurePassword2024!";
       const passwordHash = await hashPassword(password);
       
-      await db.insert(users).values({
+      const [user] = await db.insert(users).values({
         email,
         passwordHash,
         role: "admin",
         isActive: 1,
-      });
+      }).returning();
       
-      res.json({ message: "Admin user created", email });
+      // Auto-login the created user
+      req.session.user = sanitize(user);
+      
+      res.json({ user: sanitize(user) });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create admin user" });
     }
@@ -305,7 +308,11 @@ export function registerAuthRoutes(app: Express) {
       const phone = (user as any).phone || null;
       if (!phone) return res.status(400).json({ error: "No phone on file" });
       await sendSms(phone, `Your verification code is ${token}`);
-      return res.json({ sent: true, channel: "sms", to: maskPhone(phone) });
+      const response: any = { sent: true, channel: "sms", to: maskPhone(phone) };
+      if (process.env.ALLOW_TEST_OTP_RESPONSE === "true" && process.env.NODE_ENV === "test") {
+        response.token = token;
+      }
+      return res.json(response);
     } else {
       await sendMail({
         to: user.email,
@@ -313,7 +320,11 @@ export function registerAuthRoutes(app: Express) {
         html: `<p>Your verification code is <b>${token}</b>. It expires in 10 minutes.</p>`,
         text: `Your verification code is ${token}. It expires in 10 minutes.`,
       });
-      return res.json({ sent: true, channel: "email", to: maskEmail(user.email) });
+      const response: any = { sent: true, channel: "email", to: maskEmail(user.email) };
+      if (process.env.ALLOW_TEST_OTP_RESPONSE === "true" && process.env.NODE_ENV === "test") {
+        response.token = token;
+      }
+      return res.json(response);
     }
   });
 
@@ -386,7 +397,7 @@ export function registerAuthRoutes(app: Express) {
         maxAge: maxAge,
       });
       
-      res.json({ ok: true, message: "Device trusted", expiresAt });
+      res.json({ ok: true, trusted: true, message: "Device trusted", expiresAt });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to trust device" });
     }
