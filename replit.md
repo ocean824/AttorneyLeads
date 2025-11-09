@@ -97,7 +97,7 @@ Prospects, discovery, outreach, meetings, sheets sync
 
 ## Recent Changes (November 2025)
 - **Complete Authentication System**: Integrated comprehensive auth with password reset, TOTP 2FA, backup codes, email/SMS fallback, and admin 2FA enforcement
-- **Advanced Authentication Features** (Latest):
+- **Advanced Authentication Features**:
   - **Admin Hard-Gate TOTP Setup**: `ENFORCE_ADMIN_TOTP_SETUP` flag prevents admins from using fallback authentication until TOTP is configured, eliminating 2FA bypass vulnerability
   - **Trusted Device Recognition**: 30-day 2FA bypass for trusted devices with cryptographically secure tokens, httpOnly cookies, and SHA-256 hashing
   - **Backup Codes PDF Export**: Download printable backup codes as PDF for secure offline storage
@@ -105,3 +105,9 @@ Prospects, discovery, outreach, meetings, sheets sync
   - **Enhanced 2FA UX**: "Trust this device" checkbox on all 2FA verification pages
 - **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY, server-side device token generation and hashing
 - **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
+- **Login-Only Landing Page** (Latest):
+  - **Landing Page**: `/` now serves a clean, centered login panel (`client/src/pages/login-landing.tsx`) with auto-redirect for authenticated users to `/dashboard`
+  - **Protected Dashboard**: Main dashboard moved from `/` to `/dashboard` route, fully protected by both client-side (`PrivateRoute`) and server-side (`protectDashboard` middleware) guards
+  - **Conditional Header**: Header component auto-hides on landing page (`/` and `/login`) for unauthenticated users while preserving full navigation (Dashboard, Records, Jobs, Duplicates, Analytics, CRM) for authenticated users
+  - **Routing Architecture**: All protected routes (Records, Jobs, Duplicates, Analytics, CRM, Account, Admin) wrapped in `PrivateRoute` component; public routes (landing, login, forgot, reset, 2FA pages) remain accessible
+  - **Server-Side Protection**: `server/middleware/protectDashboard.ts` middleware registered early in chain (after session setup) to redirect unauthenticated GET requests to `/dashboard` → `/login`
