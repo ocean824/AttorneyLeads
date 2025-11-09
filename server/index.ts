@@ -32,15 +32,16 @@ app.use(loggerMiddleware);
 app.use(securityHeaders);
 app.use(rateLimiter);
 
-// --- Session (cookie-based) ---
-import('./session').then(m => m.setupSession(app));
-
 // --- Observability routes (/healthz, /readyz, /metrics) ---
 registerObservabilityRoutes(app);
 
-// --- Main async bootstrap (API routes + Vite/static + listener) ---
+// --- Main async bootstrap (session + API routes + Vite/static + listener) ---
 (async () => {
   try {
+    // Setup session before routes
+    const { setupSession } = await import('./session');
+    setupSession(app);
+    
     // Register /api routes and get the underlying HTTP server
     const server = await registerRoutes(app);
 
