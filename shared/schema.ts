@@ -300,6 +300,17 @@ export const userBackupCodes = pgTable("user_backup_codes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// User Trusted Devices Table (for "Trust this device" feature)
+export const userTrustedDevices = pgTable("user_trusted_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 256 }).notNull().unique(),
+  label: varchar("label", { length: 255 }), // Device name/label
+  expiresAt: timestamp("expires_at").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
@@ -308,6 +319,9 @@ export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
 export type UserBackupCode = typeof userBackupCodes.$inferSelect;
 export type InsertUserBackupCode = typeof userBackupCodes.$inferInsert;
+
+export type UserTrustedDevice = typeof userTrustedDevices.$inferSelect;
+export type InsertUserTrustedDevice = typeof userTrustedDevices.$inferInsert;
 
 // Runtime validation helpers
 export const loginSchema = z.object({

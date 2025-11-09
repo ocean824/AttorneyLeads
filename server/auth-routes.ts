@@ -1,7 +1,7 @@
 
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt, gt } from "drizzle-orm";
 import {
   users,
   loginSchema,
@@ -9,6 +9,7 @@ import {
   type User,
   passwordResetTokens,
   userBackupCodes,
+  userTrustedDevices,
 } from "@shared/schema";
 import { hashPassword, verifyPassword } from "./security/password";
 import { encryptGCM, decryptGCM } from "./security/crypto";
@@ -16,6 +17,8 @@ import { generateSecret, verifyTotp, otpauthURI } from "./security/totp";
 import { randomBytes, createHash } from "crypto";
 import { sendMail } from "./email";
 import { sendSms } from "./sms";
+import { generateDeviceToken, hashDeviceToken, getTrustedDeviceTTL, getDeviceCookieName, parseDeviceCookie } from "./security/device";
+import { generateBackupCodesPDF } from "./export";
 
 function sanitize(user: User) {
   const { passwordHash, totpSecretEnc, ...rest } = user as any;
@@ -56,8 +59,45 @@ function needsAdmin2FA(user: User): boolean {
   return enforce && role === "admin" && !totpEnabled;
 }
 
+function needsAdminHardGateSetup(user: User): boolean {
+  const role = (user.role as any) || "user";
+  const totpEnabled = (user as any).totpEnabled === 1 || (user as any).totp_enabled === 1;
+  const enforce = process.env.ENFORCE_ADMIN_TOTP_SETUP === "true";
+  return enforce && role === "admin" && !totpEnabled;
+}
+
 function hashToken(t: string) {
   return createHash("sha256").update(t).digest("hex");
+}
+
+async function checkTrustedDevice(userId: string, cookieHeader?: string): Promise<boolean> {
+  try {
+    const deviceToken = parseDeviceCookie(cookieHeader);
+    if (!deviceToken) return false;
+    
+    const tokenHash = hashDeviceToken(deviceToken);
+    const [device] = await db.select()
+      .from(userTrustedDevices)
+      .where(and(
+        eq(userTrustedDevices.userId, userId),
+        eq(userTrustedDevices.tokenHash, tokenHash),
+        gt(userTrustedDevices.expiresAt, new Date())
+      ))
+      .limit(1);
+    
+    if (device) {
+      // Update last used timestamp
+      await db.update(userTrustedDevices)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(userTrustedDevices.id, device.id));
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Trusted device check error:", error);
+    return false;
+  }
 }
 
 // ---------------------- Register existing routes from prior patch assumptions ----------------------
@@ -97,19 +137,21 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
-  // Logout
+  // Logout (also clear device cookie)
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
         return res.status(500).json({ error: "Failed to logout" });
       }
-      const cookieName = process.env.SESSION_COOKIE_NAME || "sid";
-      res.clearCookie(cookieName);
+      const sessionCookie = process.env.SESSION_COOKIE_NAME || "sid";
+      const deviceCookie = getDeviceCookieName();
+      res.clearCookie(sessionCookie);
+      res.clearCookie(deviceCookie);
       res.json({ ok: true });
     });
   });
 
-  // login with enforcement + 2FA paths
+  // login with enforcement + 2FA paths + trusted device check
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
@@ -120,16 +162,44 @@ export function registerAuthRoutes(app: Express) {
 
       const totpEnabled = (user as any).totpEnabled === 1 || (user as any).totp_enabled === 1;
       const phone = (user as any).phone as string | null;
+      const adminHardGate = needsAdminHardGateSetup(user);
       const adminMustSetup = needsAdmin2FA(user);
 
+      // Check for trusted device (bypass 2FA if valid and user has TOTP enabled)
+      if (totpEnabled && !adminHardGate) {
+        const isTrusted = await checkTrustedDevice(user.id, req.headers.cookie);
+        if (isTrusted) {
+          // Trusted device + TOTP enabled → finalize session immediately
+          await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+          req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
+          return res.json({ user: sanitize(user), trustedDevice: true });
+        }
+      }
+
       // If any 2FA is needed (TOTP enabled OR admin enforcement), we go to 2FA step
-      if (totpEnabled || adminMustSetup) {
-        req.session.pending2fa = { userId: user.id };
+      if (totpEnabled || adminMustSetup || adminHardGate) {
+        req.session.pending2fa = {
+          userId: user.id,
+          requireTotpSetup: adminHardGate,
+          allowFallbacks: !adminHardGate,
+        };
+        
+        // Admin hard-gate: only show TOTP setup option
+        if (adminHardGate) {
+          return res.json({
+            requires2fa: true,
+            adminMustSetup2fa: true,
+            methods: { totpSetup: true },
+            message: "Admins must enable 2FA before completing login",
+          });
+        }
+        
+        // Standard 2FA flow
         return res.json({
           requires2fa: true,
           methods: {
             totp: !!totpEnabled,
-            backup: true,
+            backup: !!totpEnabled,
             fallback: { email: true, sms: !!phone },
           },
           adminMustSetup2fa: adminMustSetup,
@@ -137,6 +207,7 @@ export function registerAuthRoutes(app: Express) {
         });
       }
 
+      // No 2FA required
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
       res.json({ user: sanitize(user) });
@@ -185,6 +256,12 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/backup-codes/verify", async (req, res) => {
     const pending = req.session?.pending2fa;
     if (!pending) return res.status(401).json({ error: "No pending 2FA" });
+    
+    // Block fallback if admin hard-gate requires TOTP setup
+    if (pending.requireTotpSetup || !pending.allowFallbacks) {
+      return res.status(403).json({ error: "Fallback authentication not allowed. Please complete TOTP setup." });
+    }
+    
     const code = String(req.body?.code || "");
     if (!code) return res.status(400).json({ error: "Code required" });
     const codeHash = hashToken(code);
@@ -210,6 +287,12 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/otp/send", async (req, res) => {
     const pending = req.session?.pending2fa;
     if (!pending) return res.status(401).json({ error: "No pending 2FA" });
+    
+    // Block fallback if admin hard-gate requires TOTP setup
+    if (pending.requireTotpSetup || !pending.allowFallbacks) {
+      return res.status(403).json({ error: "Fallback authentication not allowed. Please complete TOTP setup." });
+    }
+    
     const channel = String(req.body?.channel || "email");
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
     if (!user) return res.status(401).json({ error: "Invalid session" });
@@ -238,6 +321,12 @@ export function registerAuthRoutes(app: Express) {
     const pending = req.session?.pending2fa;
     const otp = (req.session as any)?.pending2faOtp;
     if (!pending || !otp) return res.status(401).json({ error: "No pending OTP" });
+    
+    // Block fallback if admin hard-gate requires TOTP setup
+    if (pending.requireTotpSetup || !pending.allowFallbacks) {
+      return res.status(403).json({ error: "Fallback authentication not allowed. Please complete TOTP setup." });
+    }
+    
     const code = String(req.body?.code || "");
     if (!code) return res.status(400).json({ error: "Code required" });
     if (Date.now() > otp.expiresAt) return res.status(401).json({ error: "Code expired" });
@@ -257,5 +346,130 @@ export function registerAuthRoutes(app: Express) {
     if (!/^[+0-9 \-()]{7,32}$/.test(phone)) return res.status(400).json({ error: "Invalid phone" });
     const [u] = await db.update(users).set({ phone: phone }).where(eq(users.id, req.session!.user!.id)).returning();
     res.json({ ok: true, phone: (u as any).phone });
+  });
+
+  // ---------------------- Trusted Devices ----------------------
+  app.post("/api/auth/trusted-devices", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.user!.id;
+      const label = String(req.body?.label || "").slice(0, 255) || "Unknown Device";
+      
+      // Check if user has TOTP enabled (required for trusted devices)
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const totpEnabled = (user as any).totpEnabled === 1 || (user as any).totp_enabled === 1;
+      if (!totpEnabled) {
+        return res.status(400).json({ error: "TOTP must be enabled to trust devices" });
+      }
+      
+      // Generate device token
+      const token = generateDeviceToken();
+      const tokenHash = hashDeviceToken(token);
+      const ttl = getTrustedDeviceTTL();
+      const expiresAt = new Date(Date.now() + ttl);
+      
+      // Store in database
+      await db.insert(userTrustedDevices).values({
+        userId,
+        tokenHash,
+        label,
+        expiresAt,
+        lastUsedAt: new Date(),
+      });
+      
+      // Set cookie
+      const cookieName = getDeviceCookieName();
+      const maxAge = Math.floor(ttl / 1000); // Convert to seconds
+      res.cookie(cookieName, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: maxAge,
+      });
+      
+      res.json({ ok: true, message: "Device trusted", expiresAt });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to trust device" });
+    }
+  });
+
+  app.get("/api/auth/trusted-devices", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.user!.id;
+      const devices = await db.select({
+        id: userTrustedDevices.id,
+        label: userTrustedDevices.label,
+        expiresAt: userTrustedDevices.expiresAt,
+        lastUsedAt: userTrustedDevices.lastUsedAt,
+        createdAt: userTrustedDevices.createdAt,
+      })
+        .from(userTrustedDevices)
+        .where(eq(userTrustedDevices.userId, userId))
+        .orderBy(userTrustedDevices.createdAt);
+      
+      res.json({ devices });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch devices" });
+    }
+  });
+
+  app.delete("/api/auth/trusted-devices/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.user!.id;
+      const deviceId = req.params.id;
+      
+      // Delete device (only if it belongs to the user)
+      await db.delete(userTrustedDevices)
+        .where(and(
+          eq(userTrustedDevices.id, deviceId),
+          eq(userTrustedDevices.userId, userId)
+        ));
+      
+      res.json({ ok: true, message: "Device revoked" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to revoke device" });
+    }
+  });
+
+  // ---------------------- Backup Codes PDF Export ----------------------
+  app.get("/api/auth/backup-codes/export", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session!.user!.id;
+      
+      // Fetch unused backup codes
+      const codes = await db.select()
+        .from(userBackupCodes)
+        .where(and(
+          eq(userBackupCodes.userId, userId),
+          isNull(userBackupCodes.usedAt)
+        ))
+        .orderBy(userBackupCodes.createdAt);
+      
+      if (codes.length === 0) {
+        return res.status(404).json({ error: "No backup codes found. Please generate new codes first." });
+      }
+      
+      // Note: We can't return the actual codes since they're hashed
+      // This endpoint should only be called immediately after generation
+      // when the plain codes are still available in memory
+      return res.status(400).json({
+        error: "Backup codes cannot be retrieved after initial generation. Please generate new codes if needed."
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to export codes" });
+    }
+  });
+
+  // PDF export endpoint for backup codes (receives codes in request body)
+  app.post("/api/auth/backup-codes/pdf", requireAuth, async (req, res) => {
+    try {
+      const codes = req.body?.codes;
+      if (!Array.isArray(codes) || codes.length === 0) {
+        return res.status(400).json({ error: "No codes provided" });
+      }
+      
+      await generateBackupCodesPDF(codes, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to generate PDF" });
+    }
   });
 }
