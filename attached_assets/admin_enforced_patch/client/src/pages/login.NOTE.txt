@@ -1,0 +1,5 @@
+
+// After calling POST /api/auth/login, if response has requires2fa:true:
+// - If methods.totp is true, you can send user to /2fa (TOTP page) OR offer choices.
+// - Otherwise, send to /2fa-fallback to receive Email/SMS code.
+// Admin enforcement: the response may include `adminMustSetup2fa:true` to indicate admins should enable TOTP after login.

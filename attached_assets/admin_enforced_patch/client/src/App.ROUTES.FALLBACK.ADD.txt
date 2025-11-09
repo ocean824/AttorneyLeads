@@ -1,0 +1,4 @@
+
+// Add the fallback route:
+import Fallback2FA from "@/pages/2fa-fallback";
+<Route path="/2fa-fallback" component={Fallback2FA} />
