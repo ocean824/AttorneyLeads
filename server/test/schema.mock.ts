@@ -44,6 +44,7 @@ export const userTrustedDevices = sqliteTable("user_trusted_devices", {
   userAgent: text("user_agent"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
   revokedAt: integer("revoked_at", { mode: "timestamp" }),
 });
 

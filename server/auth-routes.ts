@@ -70,6 +70,10 @@ function hashToken(t: string) {
   return createHash("sha256").update(t).digest("hex");
 }
 
+function unixTimestamp() {
+  return Math.floor(Date.now() / 1000);
+}
+
 async function checkTrustedDevice(userId: string, cookieHeader?: string): Promise<boolean> {
   try {
     const deviceToken = parseDeviceCookie(cookieHeader);
@@ -88,7 +92,7 @@ async function checkTrustedDevice(userId: string, cookieHeader?: string): Promis
     if (device) {
       // Update last used timestamp
       await db.update(userTrustedDevices)
-        .set({ lastUsedAt: new Date() })
+        .set({ lastUsedAt: unixTimestamp() })
         .where(eq(userTrustedDevices.id, device.id));
       return true;
     }
@@ -147,9 +151,8 @@ export function registerAuthRoutes(app: Express) {
         return res.status(500).json({ error: "Failed to logout" });
       }
       const sessionCookie = process.env.SESSION_COOKIE_NAME || "sid";
-      const deviceCookie = getDeviceCookieName();
       res.clearCookie(sessionCookie);
-      res.clearCookie(deviceCookie);
+      // NOTE: Don't clear device cookie - it should persist for trusted device bypass
       res.json({ ok: true });
     });
   });
@@ -173,7 +176,7 @@ export function registerAuthRoutes(app: Express) {
         const isTrusted = await checkTrustedDevice(user.id, req.headers.cookie);
         if (isTrusted) {
           // Trusted device + TOTP enabled → finalize session immediately
-          await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+          await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
           req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
           return res.json({ user: sanitize(user), trustedDevice: true });
         }
@@ -211,7 +214,7 @@ export function registerAuthRoutes(app: Express) {
       }
 
       // No 2FA required
-      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+      await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
       res.json({ user: sanitize(user) });
     } catch (e: any) {
@@ -234,10 +237,92 @@ export function registerAuthRoutes(app: Express) {
     const ok = verifyTotp(token, secret, 1);
     if (!ok) return res.status(401).json({ error: "Invalid code" });
 
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     res.json({ user: sanitize(user) });
+  });
+
+  // ---------------------- TOTP Setup (for admin hard-gate and normal users) ----------------------
+  app.post("/api/auth/2fa/setup/start", async (req, res) => {
+    // Support both flows: pending2fa (admin hard-gate) and normal authenticated users
+    const pending = req.session?.pending2fa;
+    const normalUser = req.session?.user;
+    
+    let userId: string;
+    let userEmail: string;
+    
+    if (pending) {
+      // Admin hard-gate flow
+      userId = pending.userId;
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return res.status(401).json({ error: "Invalid session" });
+      userEmail = user.email;
+    } else if (normalUser) {
+      // Normal authenticated user wanting to enable TOTP
+      userId = normalUser.id;
+      userEmail = normalUser.email;
+    } else {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { secretBase32 } = generateSecret();
+    
+    // Store secret temporarily in session for verification
+    (req.session as any).pendingTotpSecret = secretBase32;
+
+    const issuer = process.env.TOTP_ISSUER || "Attorney Leads";
+    const uri = otpauthURI(issuer, userEmail, secretBase32);
+
+    res.json({ secretBase32, qrUri: uri });
+  });
+
+  app.post("/api/auth/2fa/setup/verify", async (req, res) => {
+    // Support both flows: pending2fa (admin hard-gate) and normal authenticated users
+    const pending = req.session?.pending2fa;
+    const normalUser = req.session?.user;
+    
+    let userId: string;
+    let isPendingFlow = false;
+    
+    if (pending) {
+      userId = pending.userId;
+      isPendingFlow = true;
+    } else if (normalUser) {
+      userId = normalUser.id;
+    } else {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const secretBase32 = (req.session as any).pendingTotpSecret;
+    if (!secretBase32) return res.status(400).json({ error: "No pending TOTP setup" });
+
+    const token = String(req.body?.token || "");
+    if (!token) return res.status(400).json({ error: "Missing token" });
+
+    const ok = verifyTotp(token, secretBase32, 1);
+    if (!ok) return res.status(401).json({ error: "Invalid code" });
+
+    // Verify succeeded - encrypt and save secret, enable TOTP
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return res.status(401).json({ error: "Invalid session" });
+
+    const secretEnc = encryptGCM(secretBase32);
+    await db.update(users).set({
+      totpSecretEnc: secretEnc,
+      totpEnabled: 1,
+      lastLoginAt: unixTimestamp(),
+    }).where(eq(users.id, user.id));
+
+    // If pending flow (admin hard-gate), complete login session
+    if (isPendingFlow) {
+      req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
+      delete (req.session as any).pending2fa;
+    }
+    delete (req.session as any).pendingTotpSecret;
+
+    const updatedUser = { ...user, totpSecretEnc: secretEnc, totpEnabled: true };
+    res.json({ user: sanitize(updatedUser) });
   });
 
   // ---------------------- Backup codes ----------------------
@@ -277,10 +362,10 @@ export function registerAuthRoutes(app: Express) {
     if (!entry || (entry as any).usedAt) return res.status(401).json({ error: "Invalid backup code" });
 
     // consume
-    await db.update(userBackupCodes).set({ usedAt: new Date() }).where(eq(userBackupCodes.id, entry.id));
+    await db.update(userBackupCodes).set({ usedAt: unixTimestamp() }).where(eq(userBackupCodes.id, entry.id));
 
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     res.json({ user: sanitize(user) });
@@ -344,7 +429,7 @@ export function registerAuthRoutes(app: Express) {
     if (hashToken(code) !== otp.hash) return res.status(401).json({ error: "Invalid code" });
 
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     delete (req.session as any).pending2faOtp;
@@ -384,7 +469,7 @@ export function registerAuthRoutes(app: Express) {
         tokenHash,
         label,
         expiresAt,
-        lastUsedAt: new Date(),
+        lastUsedAt: unixTimestamp(),
       });
       
       // Set cookie

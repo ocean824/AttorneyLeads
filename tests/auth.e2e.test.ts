@@ -65,13 +65,13 @@ describe("Auth E2E — admin hard gate + trusted device bypass", () => {
   });
 
   it("starts pending TOTP setup and verifies", async () => {
-    const s1 = await agent.post("/api/auth/totp/pending/start").send({});
+    const s1 = await agent.post("/api/auth/2fa/setup/start").send({});
     expect(s1.status).toBe(200);
     expect(s1.body.secretBase32).toBeTruthy();
     secretBase32 = s1.body.secretBase32;
 
     const code = totp(secretBase32);
-    const v = await agent.post("/api/auth/totp/pending/verify").send({ token: code });
+    const v = await agent.post("/api/auth/2fa/setup/verify").send({ token: code });
     expect(v.status).toBe(200);
     expect(v.body.user.email).toBe("admin@test.local");
   });

@@ -55,7 +55,7 @@ describe("Auth E2E — backup codes PDF + Email/SMS fallback", () => {
     // Start setup (account route)
     // Need session; login again first (no 2FA until enabled)
     await agent.post("/api/auth/login").send({ email: "user@test.local", password: "UserPass123!" });
-    const s1 = await agent.post("/api/auth/totp/setup/start").send({});
+    const s1 = await agent.post("/api/auth/2fa/setup/start").send({});
     expect(s1.status).toBe(200);
     const secret = s1.body.secretBase32;
 
@@ -82,7 +82,7 @@ describe("Auth E2E — backup codes PDF + Email/SMS fallback", () => {
       return hotp(base32Decode(secretBase32), Math.floor(ts/1000/step), digits);
     }
     const code = totp(secret);
-    const v = await agent.post("/api/auth/totp/setup/verify").send({ token: code });
+    const v = await agent.post("/api/auth/2fa/setup/verify").send({ token: code });
     expect(v.status).toBe(200);
 
     // Now logout and test email fallback

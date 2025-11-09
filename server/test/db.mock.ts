@@ -74,6 +74,7 @@ export async function initTestDb() {
       user_agent TEXT,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       expires_at INTEGER NOT NULL,
+      last_used_at INTEGER,
       revoked_at INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
