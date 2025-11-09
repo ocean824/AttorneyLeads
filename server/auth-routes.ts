@@ -18,7 +18,7 @@ import { sendMail } from "./email";
 import { sendSms } from "./sms";
 
 function sanitize(user: User) {
-  const { passwordHash, ...rest } = user as any;
+  const { passwordHash, totpSecretEnc, ...rest } = user as any;
   return rest;
 }
 
@@ -62,6 +62,53 @@ function hashToken(t: string) {
 
 // ---------------------- Register existing routes from prior patch assumptions ----------------------
 export function registerAuthRoutes(app: Express) {
+  // Bootstrap: Create initial admin user if no users exist
+  app.post("/api/auth/bootstrap", async (req, res) => {
+    try {
+      const existingUsers = await db.select().from(users).limit(1);
+      if (existingUsers.length > 0) {
+        return res.json({ message: "Users already exist" });
+      }
+      
+      // Accept credentials from request body, or use defaults for testing
+      const email = req.body?.email || "admin@attorneyleads.com";
+      const password = req.body?.password || "SecurePassword2024!";
+      const passwordHash = await hashPassword(password);
+      
+      await db.insert(users).values({
+        email,
+        passwordHash,
+        role: "admin",
+        isActive: 1,
+      });
+      
+      res.json({ message: "Admin user created", email });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create admin user" });
+    }
+  });
+
+  // Get current user session
+  app.get("/api/auth/whoami", (req, res) => {
+    if (req.session?.user) {
+      res.json({ user: req.session.user });
+    } else {
+      res.json({ user: null });
+    }
+  });
+
+  // Logout
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      const cookieName = process.env.SESSION_COOKIE_NAME || "sid";
+      res.clearCookie(cookieName);
+      res.json({ ok: true });
+    });
+  });
+
   // login with enforcement + 2FA paths
   app.post("/api/auth/login", async (req, res) => {
     try {

@@ -2,7 +2,10 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 function keyFromEnv(): Buffer {
-  const raw = process.env.AUTH_ENC_KEY || "change-me-please-32bytesish";
+  const raw = process.env.AUTH_ENC_KEY;
+  if (!raw || raw.length < 32) {
+    throw new Error("AUTH_ENC_KEY must be set to a secure 32+ character string");
+  }
   return createHash("sha256").update(raw).digest(); // 32-byte key
 }
 
