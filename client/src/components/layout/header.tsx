@@ -13,7 +13,7 @@ export function Header() {
       .then(async (r) => (r.ok ? (await r.json()).user : null))
       .then((u) => setMe(u))
       .catch(() => setMe(null));
-  }, []);
+  }, [location]);
 
   // Hide header entirely on landing when user is not logged in
   if (!me && (location === "/" || location === "/login")) {
