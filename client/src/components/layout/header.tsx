@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 
 export function Header() {
   const [me, setMe] = useState<{ email: string; role: "user" | "admin" } | null>(null);
+  const [location] = useLocation();
+
   useEffect(() => {
     fetch("/api/auth/whoami", { credentials: "include" })
       .then(async (r) => (r.ok ? (await r.json()).user : null))
@@ -13,10 +15,13 @@ export function Header() {
       .catch(() => setMe(null));
   }, []);
 
-  const [location] = useLocation();
+  // Hide header entirely on landing when user is not logged in
+  if (!me && (location === "/" || location === "/login")) {
+    return null;
+  }
 
   const navItems = [
-    { path: "/", label: "Dashboard", icon: Activity },
+    { path: "/dashboard", label: "Dashboard", icon: Activity },
     { path: "/records", label: "Records", icon: Database },
     { path: "/jobs", label: "Jobs", icon: FileText },
     { path: "/duplicates", label: "Duplicates", icon: Copy },
@@ -28,7 +33,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo & Brand */}
-        <Link href="/">
+        <Link href="/dashboard">
           <div className="flex items-center gap-2 hover-elevate active-elevate-2 px-3 py-2 rounded-md -ml-3 cursor-pointer">
             <Scale className="w-6 h-6 text-primary" />
             <span className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
