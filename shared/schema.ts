@@ -274,10 +274,40 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // 2FA columns
+  totpEnabled: integer("totp_enabled").notNull().default(0), // 0 = disabled, 1 = enabled
+  totpSecretEnc: text("totp_secret_enc"), // AES-GCM encrypted TOTP secret
+  // SMS fallback for 2FA
+  phone: varchar("phone", { length: 32 }), // Phone number for SMS OTP
+});
+
+// Password Reset Tokens Table
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 256 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// User Backup Codes Table (for 2FA recovery)
+export const userBackupCodes = pgTable("user_backup_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  codeHash: varchar("code_hash", { length: 256 }).notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+export type UserBackupCode = typeof userBackupCodes.$inferSelect;
+export type InsertUserBackupCode = typeof userBackupCodes.$inferInsert;
 
 // Runtime validation helpers
 export const loginSchema = z.object({

@@ -14,11 +14,23 @@ import CRM from "@/pages/crm";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import AdminUsers from "@/pages/admin-users";
+import Forgot from "@/pages/forgot";
+import Reset from "@/pages/reset";
+import TwoFA from "@/pages/2fa";
+import Fallback2FA from "@/pages/2fa-fallback";
+import AccountSecurity from "@/pages/account-security";
 
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/forgot" component={Forgot} />
+      <Route path="/reset" component={Reset} />
+      <Route path="/2fa" component={TwoFA} />
+      <Route path="/2fa-fallback" component={Fallback2FA} />
+      <Route path="/account/security" >
+        <PrivateRoute><AccountSecurity /></PrivateRoute>
+      </Route>
       <Route path="/" >
         <PrivateRoute><Dashboard /></PrivateRoute>
       </Route>

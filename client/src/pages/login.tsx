@@ -23,11 +23,13 @@ export default function Login() {
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "Login failed");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Login failed");
+      if (j.requires2fa) {
+        navigate("/2fa");
+      } else {
+        navigate("/");
       }
-      navigate("/");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -51,7 +53,10 @@ export default function Login() {
               <label className="block text-sm mb-1">Password</label>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {error && <div className="text-sm text-red-600">{error}</div>}
+            <div className="flex justify-between items-center">
+              <a className="text-sm underline" href="/forgot">Forgot password?</a>
+              {error && <div className="text-sm text-red-600">{error}</div>}
+            </div>
             <Button type="submit" disabled={busy} className="w-full">{busy ? "Signing in…" : "Sign in"}</Button>
           </form>
         </CardContent>

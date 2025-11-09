@@ -61,9 +61,12 @@ export function Header() {
         <div className="flex items-center gap-2">
           {me ? (
             <>
+              <Link href="/account/security">
+                <Button variant="outline" data-testid="link-account">Account</Button>
+              </Link>
               {me.role === "admin" && (
                 <Link href="/admin/users">
-                  <Button variant="outline" className="mr-2">Admin</Button>
+                  <Button variant="outline">Admin</Button>
                 </Link>
               )}
               <span className="text-sm mr-2">{me.email}</span>
@@ -73,13 +76,14 @@ export function Header() {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                   window.location.href = "/login";
                 }}
+                data-testid="button-logout"
               >
                 Logout
               </Button>
             </>
           ) : (
             <Link href="/login">
-              <Button>Login</Button>
+              <Button data-testid="button-login">Login</Button>
             </Link>
           )}
         </div>
