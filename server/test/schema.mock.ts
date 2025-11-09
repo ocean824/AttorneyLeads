@@ -12,8 +12,8 @@ export const users = sqliteTable("users", {
   totpEnabled: integer("totp_enabled", { mode: "number" }).notNull().default(0),
   totpSecretEnc: text("totp_secret_enc"),
   phone: text("phone"),
-  lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  lastLoginAt: integer("last_login_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`strftime('%s','now')`),
 });
 
 export type User = typeof users.$inferSelect;
@@ -22,17 +22,17 @@ export const passwordResetTokens = sqliteTable("password_reset_tokens", {
   id: text("id").primaryKey().default(sql`lower(hex(randomblob(16)))`),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  usedAt: integer("used_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
+  usedAt: integer("used_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`strftime('%s','now')`),
 });
 
 export const userBackupCodes = sqliteTable("user_backup_codes", {
   id: text("id").primaryKey().default(sql`lower(hex(randomblob(16)))`),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   codeHash: text("code_hash").notNull(),
-  usedAt: integer("used_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  usedAt: integer("used_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`strftime('%s','now')`),
 });
 
 export const userTrustedDevices = sqliteTable("user_trusted_devices", {
@@ -42,10 +42,10 @@ export const userTrustedDevices = sqliteTable("user_trusted_devices", {
   label: text("label"),
   ip: text("ip"),
   userAgent: text("user_agent"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
-  revokedAt: integer("revoked_at", { mode: "timestamp" }),
+  createdAt: integer("created_at").notNull().default(sql`strftime('%s','now')`),
+  expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
+  lastUsedAt: integer("last_used_at"), // Unix timestamp (seconds)
+  revokedAt: integer("revoked_at"), // Unix timestamp (seconds)
 });
 
 export const loginSchema = z.object({

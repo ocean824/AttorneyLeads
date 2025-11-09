@@ -85,7 +85,7 @@ async function checkTrustedDevice(userId: string, cookieHeader?: string): Promis
       .where(and(
         eq(userTrustedDevices.userId, userId),
         eq(userTrustedDevices.tokenHash, tokenHash),
-        gt(userTrustedDevices.expiresAt, new Date())
+        gt(userTrustedDevices.expiresAt, unixTimestamp())
       ))
       .limit(1);
     
@@ -461,7 +461,7 @@ export function registerAuthRoutes(app: Express) {
       const token = generateDeviceToken();
       const tokenHash = hashDeviceToken(token);
       const ttl = getTrustedDeviceTTL();
-      const expiresAt = new Date(Date.now() + ttl);
+      const expiresAt = Math.floor((Date.now() + ttl) / 1000); // Unix timestamp
       
       // Store in database
       await db.insert(userTrustedDevices).values({

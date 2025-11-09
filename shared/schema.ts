@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -271,9 +271,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: varchar("role", { length: 20 }).notNull().default("user"), // 'user' | 'admin'
   isActive: integer("is_active").notNull().default(1),
-  lastLoginAt: timestamp("last_login_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  lastLoginAt: integer("last_login_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
+  updatedAt: integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
   // 2FA columns
   totpEnabled: integer("totp_enabled").notNull().default(0), // 0 = disabled, 1 = enabled
   totpSecretEnc: text("totp_secret_enc"), // AES-GCM encrypted TOTP secret
@@ -286,9 +286,9 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 256 }).notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  usedAt: timestamp("used_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
+  usedAt: integer("used_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 });
 
 // User Backup Codes Table (for 2FA recovery)
@@ -296,8 +296,8 @@ export const userBackupCodes = pgTable("user_backup_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   codeHash: varchar("code_hash", { length: 256 }).notNull(),
-  usedAt: timestamp("used_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  usedAt: integer("used_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 });
 
 // User Trusted Devices Table (for "Trust this device" feature)
@@ -306,9 +306,9 @@ export const userTrustedDevices = pgTable("user_trusted_devices", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 256 }).notNull().unique(),
   label: varchar("label", { length: 255 }), // Device name/label
-  expiresAt: timestamp("expires_at").notNull(),
-  lastUsedAt: timestamp("last_used_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
+  lastUsedAt: integer("last_used_at"), // Unix timestamp (seconds)
+  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 });
 
 export type User = typeof users.$inferSelect;
