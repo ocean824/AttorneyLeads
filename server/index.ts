@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { loggerMiddleware } from "./middleware/loggerMiddleware";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { rateLimiter } from "./middleware/rateLimiter";
+import { registerDashboardGuard } from "./middleware/protectDashboard";
 import { registerObservabilityRoutes } from "./observability";
 import { logger } from "./logger";
 
@@ -41,6 +42,9 @@ registerObservabilityRoutes(app);
     // Setup session before routes
     const { setupSession } = await import('./session');
     setupSession(app);
+    
+    // Protect /dashboard route (redirect unauthenticated GET requests)
+    registerDashboardGuard(app);
     
     // Register /api routes and get the underlying HTTP server
     const server = await registerRoutes(app);

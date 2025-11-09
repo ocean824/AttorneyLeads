@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Header } from "@/components/layout/header";
+import LoginLanding from "@/pages/login-landing";
 import Dashboard from "@/pages/dashboard";
 import Records from "@/pages/records";
 import Jobs from "@/pages/jobs";
@@ -24,18 +25,16 @@ import Devices from "@/pages/devices";
 function Router() {
   return (
     <Switch>
+      {/* Public routes */}
+      <Route path="/" component={LoginLanding} />
       <Route path="/login" component={Login} />
       <Route path="/forgot" component={Forgot} />
       <Route path="/reset" component={Reset} />
       <Route path="/2fa" component={TwoFA} />
       <Route path="/2fa-fallback" component={Fallback2FA} />
-      <Route path="/account/security" >
-        <PrivateRoute><AccountSecurity /></PrivateRoute>
-      </Route>
-      <Route path="/account/devices" >
-        <PrivateRoute><Devices /></PrivateRoute>
-      </Route>
-      <Route path="/" >
+      
+      {/* Protected routes */}
+      <Route path="/dashboard" >
         <PrivateRoute><Dashboard /></PrivateRoute>
       </Route>
       <Route path="/records" >
@@ -53,9 +52,16 @@ function Router() {
       <Route path="/crm" >
         <PrivateRoute><CRM /></PrivateRoute>
       </Route>
+      <Route path="/account/security" >
+        <PrivateRoute><AccountSecurity /></PrivateRoute>
+      </Route>
+      <Route path="/account/devices" >
+        <PrivateRoute><Devices /></PrivateRoute>
+      </Route>
       <Route path="/admin/users" >
         <PrivateRoute><AdminUsers /></PrivateRoute>
       </Route>
+      
       <Route component={NotFound} />
     </Switch>
   );
