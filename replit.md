@@ -25,7 +25,9 @@ Do not make changes to the `scripts/dbReset.ts` file.
 - **Observability**: Liveness (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) endpoints.
 - **Security**: Structured logging with PII redaction, request IDs, CSP, X-Frame-Options, HSTS, and rate limiting.
 - **AI Agent Assistant**: Production-ready conversational interface with session management, contextual arrest record integration, and secure API endpoints. Includes advanced chat UI with optimistic updates, error recovery, and session persistence.
+- **Multi-LLM Fallback System**: Production-ready intelligent router supporting OpenAI (GPT-4o-mini), Anthropic (Claude Sonnet 4.5), and Google (Gemini 2.5 Flash). Automatic fallback on API failures or timeouts (>15s), with latency/token tracking and health monitoring at GET `/api/agent/llm/health`.
 - **Enhanced Scraper Engine**: Expanded database schema with new tables (`arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`), performance indexes, and Python retrieval modules for documents and court dockets with fuzzy matching and retry logic.
+- **Billing Infrastructure (In Progress)**: Database schema extended with Stripe fields (`plan`, `stripeCustomerId`, `stripeSubscriptionId`, `subscriptionStatus`). Stripe service layer partially implemented; requires storage interface completion before production use.
 
 ### Data Models
 - **User Accounts**: `users`, `password_reset_tokens`, `user_backup_codes`, `user_trusted_devices`
@@ -42,7 +44,7 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - **Core Operations**: Stats, scrape management, record retrieval, export, deduplication, analytics.
 - **CRM**: Prospects, discovery, outreach, meetings, sheets sync.
 - **Observability**: `/healthz`, `/readyz`, `/metrics`.
-- **AI Agent**: `/api/agent/*` (chat, session management).
+- **AI Agent**: `/api/agent/*` (chat, session management, LLM health check).
 
 ### Security Middleware
 - `loggerMiddleware.ts`: Request logging with X-Request-Id.
@@ -52,10 +54,51 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 
 ## External Dependencies
 - **PostgreSQL (Neon)**: Primary database.
-- **OpenAI GPT-4o-mini**: AI for charge categorization and AI agent.
+- **AI Providers** (via Replit AI Integrations, billed to credits):
+  - **OpenAI GPT-4o-mini**: Primary LLM for charge categorization and AI agent chat.
+  - **Anthropic Claude Sonnet 4.5**: Secondary fallback LLM.
+  - **Google Gemini 2.5 Flash**: Tertiary fallback LLM.
 - **PhantomBuster**: Prospect discovery from LinkedIn and Facebook.
 - **Calendly**: Automated meeting scheduling.
 - **Google Sheets API**: Bi-directional synchronization.
 - **Prometheus**: Metrics collection and monitoring.
+- **Stripe**: (In Progress) Subscription billing infrastructure.
 - **Twilio**: (Optional) SMS for OTP.
 - **SMTP Service**: (Optional) Email for password reset/OTP.
+
+## Multi-LLM Fallback System (Production-Ready)
+
+### Architecture
+The system uses an intelligent router (`server/llm/router.ts`) that automatically switches between AI providers:
+
+**Fallback Order**: OpenAI → Claude → Gemini
+
+**Triggers**:
+- API failures (rate limits, auth errors, service outages)
+- Latency exceeding 15 seconds
+- Provider-specific errors
+
+### Features
+- **Token Usage Tracking**: All responses include `tokensUsed` for billing analytics
+- **Latency Monitoring**: Every request tracks `latencyMs` for performance observability
+- **Health Checks**: GET `/api/agent/llm/health` returns real-time provider status
+- **Zero-Config**: Uses Replit AI Integrations (no API keys required, billed to credits)
+
+### Configuration
+Default settings per provider (configurable in `server/llm/router.ts`):
+
+```typescript
+OpenAI: { model: 'gpt-4o-mini', maxTokens: 2000, temperature: 0.7, timeoutMs: 15000 }
+Claude: { model: 'claude-sonnet-4-5', maxTokens: 2000, temperature: 0.7, timeoutMs: 15000 }
+Gemini: { model: 'gemini-2.5-flash', maxTokens: 2000, temperature: 0.7, timeoutMs: 15000 }
+```
+
+### Integration
+The AI Agent service (`server/agent-service.ts`) automatically uses the multi-LLM router. All chat interactions benefit from automatic failover without code changes.
+
+### Testing
+Health check endpoint validates all providers:
+```bash
+curl http://localhost:5000/api/agent/llm/health
+# Response: { "openai": true, "claude": true, "gemini": true }
+```
