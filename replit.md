@@ -76,7 +76,9 @@ Stats, scrape management, record retrieval, export, deduplication, analytics
 Prospects, discovery, outreach, meetings, sheets sync
 
 **Observability:**
-`/healthz`, `/readyz`, `/metrics`
+- `/healthz` - Liveness probe (basic DB connectivity check)
+- `/readyz` - Readiness probe (detailed database + environment checks)
+- `/metrics` - Prometheus metrics endpoint (record counts, job counts, AI-enhanced counts)
 
 ## Required Environment Variables
 **Authentication (Required):**
@@ -97,6 +99,33 @@ Prospects, discovery, outreach, meetings, sheets sync
 **Optional:**
 - `SMTP_*` - Email configuration for real password reset/OTP emails (falls back to console logging)
 - `TWILIO_*` - SMS configuration for SMS OTP (falls back to console logging)
+
+## Operational Tools
+
+**Utility Scripts** (`scripts/`):
+- `envDoctor.ts` - Validates all required environment variables are set correctly
+- `seed.ts` - Seeds database with sample data for development
+- `smoke-test.ts` - Runs basic health checks on all API endpoints
+- `first-run.ts` - First-run setup and initialization
+- `dbReset.ts` - Database reset utility (use with caution)
+
+**Security Middleware** (`server/middleware/`):
+- `loggerMiddleware.ts` - Request logging with X-Request-Id correlation
+- `securityHeaders.ts` - CSP, X-Frame-Options, X-Content-Type-Options, COEP, COOP
+- `rateLimiter.ts` - In-memory rate limiting with route-specific configs
+- `protectDashboard.ts` - Server-side HTML guard for protected routes
+
+**Configuration** (`config/`):
+- `rateLimits.ts` - Rate limit presets (strict/moderate/lenient) and route-specific rules
+- `permissions.ts` - Permission system configuration
+- `featureFlags.ts` - Feature flag management
+
+**Documentation** (`docs/`):
+- `PRD_MASTER.md` - Complete product requirements document
+- `ARCHITECTURE.md` - System architecture and design decisions
+- `DEPLOY_REPLIT.md` - Deployment guide for Replit
+- `OPERATIONS.md` - Operations runbook and troubleshooting
+- `SECURITY.md` - Security documentation and best practices
 
 ## External Dependencies
 - **PostgreSQL (Neon)**: Primary database for persistent storage
