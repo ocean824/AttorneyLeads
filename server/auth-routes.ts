@@ -323,7 +323,7 @@ export function registerAuthRoutes(app: Express) {
     }
     delete (req.session as any).pendingTotpSecret;
 
-    const updatedUser = { ...user, totpSecretEnc: secretEnc, totpEnabled: true };
+    const updatedUser = { ...user, totpSecretEnc: secretEnc, totpEnabled: 1 };
     res.json({ user: sanitize(updatedUser) });
   });
 
