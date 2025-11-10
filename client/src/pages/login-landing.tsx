@@ -3,7 +3,7 @@ import { FormEvent, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardContent, CardTitle, CardFooter } from "@/components/ui/card";
 
 export default function LoginLanding() {
   const [, navigate] = useLocation();
@@ -36,7 +36,8 @@ export default function LoginLanding() {
         else if (j.methods?.totp) navigate("/2fa");
         else navigate("/2fa-fallback");
       } else {
-        navigate("/dashboard");
+        if (j.user?.role === "admin") navigate("/admin/users");
+        else navigate("/dashboard");
       }
     } catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
@@ -62,9 +63,14 @@ export default function LoginLanding() {
               <a className="text-sm underline" href="/forgot">Forgot password?</a>
               {error && <div className="text-sm text-red-600">{error}</div>}
             </div>
-            <Button type="submit" disabled={busy} className="w-full">{busy ? "Signing in…" : "Sign in"}</Button>
+            <Button type="submit" disabled={busy} className="w-full" data-testid="button-submit">{busy ? "Signing in…" : "Sign in"}</Button>
           </form>
         </CardContent>
+        <CardFooter>
+          <div className="w-full text-center text-xs text-muted-foreground">
+            Admin? <a href="/login?admin=1" className="underline">Admin login</a>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );
