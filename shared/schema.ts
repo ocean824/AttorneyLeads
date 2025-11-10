@@ -492,6 +492,57 @@ export const insertNotificationHistorySchema = createInsertSchema(notificationHi
   sentAt: true,
 });
 
+// Appointment Slots Table - Admin-defined availability
+export const appointmentSlots = pgTable("appointment_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime: varchar("start_time", { length: 5 }).notNull(), // HH:MM format (24-hour)
+  endTime: varchar("end_time", { length: 5 }).notNull(), // HH:MM format (24-hour)
+  duration: integer("duration").notNull().default(30), // Slot duration in minutes
+  timezone: varchar("timezone", { length: 100 }).notNull().default("America/New_York"), // IANA timezone
+  isActive: integer("is_active").notNull().default(1), // 0 = disabled, 1 = enabled
+  maxBookings: integer("max_bookings").notNull().default(1), // Max concurrent bookings per slot
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Appointment Bookings Table - Visitor bookings
+export const appointmentBookings = pgTable("appointment_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slotId: varchar("slot_id").references(() => appointmentSlots.id, { onDelete: "cascade" }),
+  appointmentDate: varchar("appointment_date", { length: 10 }).notNull(), // YYYY-MM-DD format
+  appointmentTime: varchar("appointment_time", { length: 5 }).notNull(), // HH:MM format (24-hour)
+  visitorName: varchar("visitor_name", { length: 255 }).notNull(),
+  visitorEmail: varchar("visitor_email", { length: 255 }).notNull(),
+  visitorPhone: varchar("visitor_phone", { length: 32 }),
+  visitorTimezone: varchar("visitor_timezone", { length: 100 }).notNull(), // IANA timezone
+  caseType: varchar("case_type", { length: 100 }), // e.g., "DUI", "Traffic", "Criminal"
+  notes: text("notes"),
+  status: varchar("status", { length: 20 }).notNull().default("confirmed"), // confirmed, cancelled, completed, no_show
+  confirmationSent: integer("confirmation_sent").notNull().default(0), // 0 = not sent, 1 = sent
+  reminderSent: integer("reminder_sent").notNull().default(0), // 0 = not sent, 1 = sent
+  sessionId: varchar("session_id", { length: 255 }), // Link to chat session
+  arrestRecordId: varchar("arrest_record_id", { length: 255 }).references(() => arrestRecords.id, { onDelete: "set null" }), // Optional link to arrest record
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  dateIdx: index("appointment_bookings_date_idx").on(table.appointmentDate),
+  statusIdx: index("appointment_bookings_status_idx").on(table.status),
+}));
+
+// Insert Schemas for Appointments
+export const insertAppointmentSlotSchema = createInsertSchema(appointmentSlots).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAppointmentBookingSchema = createInsertSchema(appointmentBookings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types for Enhanced Scraper tables
 export type ArrestDocument = typeof arrestDocuments.$inferSelect;
 export type InsertArrestDocument = z.infer<typeof insertArrestDocumentSchema>;
@@ -545,3 +596,10 @@ export type ChatMessageRequest = z.infer<typeof chatMessageSchema>;
 export type DeliverToCrmRequest = z.infer<typeof deliverToCrmSchema>;
 export type SendNotificationRequest = z.infer<typeof sendNotificationSchema>;
 export type GenerateExportRequest = z.infer<typeof generateExportSchema>;
+
+// Appointment types
+export type AppointmentSlot = typeof appointmentSlots.$inferSelect;
+export type InsertAppointmentSlot = z.infer<typeof insertAppointmentSlotSchema>;
+
+export type AppointmentBooking = typeof appointmentBookings.$inferSelect;
+export type InsertAppointmentBooking = z.infer<typeof insertAppointmentBookingSchema>;
