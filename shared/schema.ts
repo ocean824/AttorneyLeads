@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, bigint, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -337,3 +337,201 @@ export const registerUserSchema = z.object({
 
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterUserRequest = z.infer<typeof registerUserSchema>;
+
+// ===================== ENHANCED SCRAPER TABLES =====================
+
+// Arrest Documents Table (affidavits, offense reports)
+export const arrestDocuments = pgTable("arrest_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  arrestRecordId: varchar("arrest_record_id").notNull().references(() => arrestRecords.id, { onDelete: "cascade" }),
+  documentType: text("document_type").notNull(), // affidavit, offense_report, booking_sheet, mugshot
+  documentUrl: text("document_url"), // URL to original document
+  localPath: text("local_path"), // Path to downloaded document
+  fileSize: bigint("file_size", { mode: "number" }), // Bytes
+  mimeType: text("mime_type"), // application/pdf, image/jpeg, etc.
+  retrievalStatus: text("retrieval_status").notNull().default("pending"), // pending, success, failed, not_found
+  verificationStatus: text("verification_status").notNull().default("pending"), // pending, verified, mismatch
+  verificationNotes: text("verification_notes"), // AI verification details
+  retryCount: integer("retry_count").default(0).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  errorMessage: text("error_message"),
+  metadata: text("metadata"), // JSON with additional document info
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  arrestRecordIdIdx: index("arrest_documents_arrest_record_id_idx").on(table.arrestRecordId),
+  retrievalStatusIdx: index("arrest_documents_retrieval_status_idx").on(table.retrievalStatus),
+  verificationStatusIdx: index("arrest_documents_verification_status_idx").on(table.verificationStatus),
+}));
+
+// Court Dockets Table
+export const courtDockets = pgTable("court_dockets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  arrestRecordId: varchar("arrest_record_id").notNull().references(() => arrestRecords.id, { onDelete: "cascade" }),
+  caseNumber: text("case_number"),
+  courtName: text("court_name"),
+  filingDate: text("filing_date"),
+  status: text("status"), // pending, active, closed, dismissed
+  charges: text("charges"), // JSON array of charges with details
+  disposition: text("disposition"), // guilty, not_guilty, plea_deal, dismissed
+  sentencingDetails: text("sentencing_details"), // JSON with sentencing info
+  docketUrl: text("docket_url"), // URL to court docket
+  retrievalStatus: text("retrieval_status").notNull().default("pending"), // pending, success, failed, not_found
+  matchConfidence: integer("match_confidence"), // 0-100 confidence score
+  matchReason: text("match_reason"), // Explanation of match logic
+  retryCount: integer("retry_count").default(0).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  arrestRecordIdIdx: index("court_dockets_arrest_record_id_idx").on(table.arrestRecordId),
+  retrievalStatusIdx: index("court_dockets_retrieval_status_idx").on(table.retrievalStatus),
+  statusIdx: index("court_dockets_status_idx").on(table.status),
+}));
+
+// Agent Interactions Table (AI agent chat history)
+export const agentInteractions = pgTable("agent_interactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(), // Group related messages
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  arrestRecordId: varchar("arrest_record_id").references(() => arrestRecords.id, { onDelete: "set null" }), // Optional context
+  role: text("role").notNull(), // user, assistant, system
+  message: text("message").notNull(),
+  model: text("model"), // gpt-4o-mini, etc.
+  tokensUsed: integer("tokens_used"),
+  actionTaken: text("action_taken"), // crm_delivery, code_explanation, verification_check
+  actionResult: text("action_result"), // JSON with action outcome
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  sessionIdIdx: index("agent_interactions_session_id_idx").on(table.sessionId),
+  userIdIdx: index("agent_interactions_user_id_idx").on(table.userId),
+  arrestRecordIdIdx: index("agent_interactions_arrest_record_id_idx").on(table.arrestRecordId),
+}));
+
+// CRM Delivery Logs Table
+export const deliveryLogs = pgTable("delivery_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  deliveryType: text("delivery_type").notNull(), // internal, webhook, email
+  destination: text("destination").notNull(), // URL for webhook, email address, or "internal_ui"
+  recordIds: text("record_ids").notNull(), // JSON array of arrest record IDs
+  payloadHash: varchar("payload_hash", { length: 64 }), // SHA-256 hash of payload
+  status: text("status").notNull().default("pending"), // pending, success, failed, retrying
+  httpStatusCode: integer("http_status_code"), // For webhook deliveries
+  responseBody: text("response_body"), // Response from webhook
+  retryCount: integer("retry_count").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  lastRetryAt: timestamp("last_retry_at"),
+  errorMessage: text("error_message"),
+  triggeredBy: varchar("triggered_by"), // user_id who triggered delivery
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  deliveryTypeIdx: index("delivery_logs_delivery_type_idx").on(table.deliveryType),
+  statusIdx: index("delivery_logs_status_idx").on(table.status),
+  triggeredByIdx: index("delivery_logs_triggered_by_idx").on(table.triggeredBy),
+}));
+
+// Notification History Table
+export const notificationHistory = pgTable("notification_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  notificationType: text("notification_type").notNull(), // daily_digest, toast, email_summary, agent_log
+  channel: text("channel").notNull(), // email, in_app, log
+  recipient: text("recipient"), // Email address or user_id
+  subject: text("subject"),
+  message: text("message").notNull(),
+  templateUsed: text("template_used"), // Template identifier
+  metadata: text("metadata"), // JSON with notification context (arrest count, date range, etc.)
+  status: text("status").notNull().default("pending"), // pending, sent, failed
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  notificationTypeIdx: index("notification_history_notification_type_idx").on(table.notificationType),
+  channelIdx: index("notification_history_channel_idx").on(table.channel),
+  statusIdx: index("notification_history_status_idx").on(table.status),
+}));
+
+// Insert Schemas for Enhanced Scraper tables
+export const insertArrestDocumentSchema = createInsertSchema(arrestDocuments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCourtDocketSchema = createInsertSchema(courtDockets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAgentInteractionSchema = createInsertSchema(agentInteractions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDeliveryLogSchema = createInsertSchema(deliveryLogs).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertNotificationHistorySchema = createInsertSchema(notificationHistory).omit({
+  id: true,
+  createdAt: true,
+  sentAt: true,
+});
+
+// Types for Enhanced Scraper tables
+export type ArrestDocument = typeof arrestDocuments.$inferSelect;
+export type InsertArrestDocument = z.infer<typeof insertArrestDocumentSchema>;
+
+export type CourtDocket = typeof courtDockets.$inferSelect;
+export type InsertCourtDocket = z.infer<typeof insertCourtDocketSchema>;
+
+export type AgentInteraction = typeof agentInteractions.$inferSelect;
+export type InsertAgentInteraction = z.infer<typeof insertAgentInteractionSchema>;
+
+export type DeliveryLog = typeof deliveryLogs.$inferSelect;
+export type InsertDeliveryLog = z.infer<typeof insertDeliveryLogSchema>;
+
+export type NotificationHistory = typeof notificationHistory.$inferSelect;
+export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
+
+// API Schemas for Enhanced Scraper endpoints
+
+export const chatMessageSchema = z.object({
+  sessionId: z.string().optional(), // Create new session if not provided
+  message: z.string().min(1),
+  arrestRecordId: z.string().optional(), // Optional context
+});
+
+export const deliverToCrmSchema = z.object({
+  recordIds: z.array(z.string()).min(1),
+  deliveryType: z.enum(["internal", "webhook"]),
+  webhookUrl: z.string().url().optional(), // Required for webhook type
+});
+
+export const sendNotificationSchema = z.object({
+  notificationType: z.enum(["daily_digest", "toast", "email_summary", "agent_log"]),
+  channel: z.enum(["email", "in_app", "log"]),
+  recipient: z.string().optional(),
+  message: z.string().min(1),
+});
+
+export const generateExportSchema = z.object({
+  format: z.enum(["pdf", "csv"]),
+  recordIds: z.array(z.string()).optional(),
+  groupBy: z.enum(["date", "county", "none"]).default("date"),
+  includeDocuments: z.boolean().default(true),
+  filters: z.object({
+    county: z.string().optional(),
+    dateFrom: z.string().optional(),
+    dateTo: z.string().optional(),
+  }).optional(),
+});
+
+export type ChatMessageRequest = z.infer<typeof chatMessageSchema>;
+export type DeliverToCrmRequest = z.infer<typeof deliverToCrmSchema>;
+export type SendNotificationRequest = z.infer<typeof sendNotificationSchema>;
+export type GenerateExportRequest = z.infer<typeof generateExportSchema>;

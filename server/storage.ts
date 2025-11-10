@@ -13,6 +13,16 @@ import {
   type InsertOutreachCampaign,
   type ScheduledMeeting,
   type InsertScheduledMeeting,
+  type ArrestDocument,
+  type InsertArrestDocument,
+  type CourtDocket,
+  type InsertCourtDocket,
+  type AgentInteraction,
+  type InsertAgentInteraction,
+  type DeliveryLog,
+  type InsertDeliveryLog,
+  type NotificationHistory,
+  type InsertNotificationHistory,
   arrestRecords,
   scrapeJobs,
   crmSyncLog,
@@ -20,6 +30,11 @@ import {
   crmProspects,
   outreachCampaigns,
   scheduledMeetings,
+  arrestDocuments,
+  courtDockets,
+  agentInteractions,
+  deliveryLogs,
+  notificationHistory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, or, like, desc, sql } from "drizzle-orm";
@@ -95,6 +110,33 @@ export interface IStorage {
   getScheduledMeeting(id: string): Promise<ScheduledMeeting | undefined>;
   createScheduledMeeting(meeting: InsertScheduledMeeting): Promise<ScheduledMeeting>;
   updateScheduledMeeting(id: string, updates: Partial<Omit<ScheduledMeeting, "id" | "createdAt">>): Promise<ScheduledMeeting | undefined>;
+
+  // Arrest Documents
+  getArrestDocuments(arrestRecordId: string): Promise<ArrestDocument[]>;
+  getArrestDocument(id: string): Promise<ArrestDocument | undefined>;
+  createArrestDocument(document: InsertArrestDocument): Promise<ArrestDocument>;
+  updateArrestDocument(id: string, updates: Partial<Omit<ArrestDocument, "id" | "createdAt">>): Promise<ArrestDocument | undefined>;
+
+  // Court Dockets
+  getCourtDockets(arrestRecordId: string): Promise<CourtDocket[]>;
+  getCourtDocket(id: string): Promise<CourtDocket | undefined>;
+  createCourtDocket(docket: InsertCourtDocket): Promise<CourtDocket>;
+  updateCourtDocket(id: string, updates: Partial<Omit<CourtDocket, "id" | "createdAt">>): Promise<CourtDocket | undefined>;
+
+  // Agent Interactions
+  getAgentInteractions(sessionId?: string, arrestRecordId?: string): Promise<AgentInteraction[]>;
+  createAgentInteraction(interaction: InsertAgentInteraction): Promise<AgentInteraction>;
+
+  // Delivery Logs
+  getDeliveryLogs(filters?: { deliveryType?: string; status?: string }): Promise<DeliveryLog[]>;
+  getDeliveryLog(id: string): Promise<DeliveryLog | undefined>;
+  createDeliveryLog(log: InsertDeliveryLog): Promise<DeliveryLog>;
+  updateDeliveryLog(id: string, updates: Partial<Omit<DeliveryLog, "id" | "createdAt">>): Promise<DeliveryLog | undefined>;
+
+  // Notification History
+  getNotificationHistory(filters?: { notificationType?: string; channel?: string }): Promise<NotificationHistory[]>;
+  createNotificationHistory(notification: InsertNotificationHistory): Promise<NotificationHistory>;
+  updateNotificationHistory(id: string, updates: Partial<Omit<NotificationHistory, "id" | "createdAt">>): Promise<NotificationHistory | undefined>;
 }
 
 export class DbStorage implements IStorage {
