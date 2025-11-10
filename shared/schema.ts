@@ -279,6 +279,12 @@ export const users = pgTable("users", {
   totpSecretEnc: text("totp_secret_enc"), // AES-GCM encrypted TOTP secret
   // SMS fallback for 2FA
   phone: varchar("phone", { length: 32 }), // Phone number for SMS OTP
+  // Billing & subscription columns
+  plan: varchar("plan", { length: 20 }).notNull().default("free"), // 'free' | 'basic' | 'standard' | 'pro' | 'elite'
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+  subscriptionStatus: varchar("subscription_status", { length: 50 }), // 'active' | 'canceled' | 'past_due' | 'trialing' | null
+  subscriptionCurrentPeriodEnd: integer("subscription_current_period_end"), // Unix timestamp
 });
 
 // Password Reset Tokens Table
