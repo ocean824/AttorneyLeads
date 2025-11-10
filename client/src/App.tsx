@@ -61,6 +61,10 @@ function Router() {
       <Route path="/admin/users" >
         <PrivateRoute><AdminPanel /></PrivateRoute>
       </Route>
+      <Route path="/admin" >
+        {/* Both /admin and /admin/users render the admin panel */}
+        <PrivateRoute><AdminPanel /></PrivateRoute>
+      </Route>
       
       <Route component={NotFound} />
     </Switch>

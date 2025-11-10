@@ -17,7 +17,8 @@ export function PrivateRoute({ children }: { children: JSX.Element }) {
       .catch(() => setStatus("nope"));
   }, []);
 
-  if (status === "loading") return <div className="p-6">Checking session…</div>;
-  if (status === "nope") return <Redirect to="/login" />;
+  // Return null during loading to prevent flash-of-content
+  if (status === "loading") return null;
+  if (status === "nope") return <Redirect to="/" />;
   return children;
 }

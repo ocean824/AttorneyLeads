@@ -4,7 +4,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import { loggerMiddleware } from "./middleware/loggerMiddleware";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { rateLimiter } from "./middleware/rateLimiter";
-import { registerDashboardGuard } from "./middleware/protectDashboard";
 import { registerObservabilityRoutes } from "./observability";
 import { registerAdminRoutes } from "./admin-routes";
 import { registerAdminBootstrap } from "./admin-bootstrap";
@@ -45,8 +44,10 @@ registerObservabilityRoutes(app);
     const { setupSession } = await import('./session');
     setupSession(app);
     
-    // Protect /dashboard route (redirect unauthenticated GET requests)
-    registerDashboardGuard(app);
+    // Note: SPA route protection relies on:
+    // 1. Client-side guards (PrivateRoute component)
+    // 2. API endpoint authentication (ensureAuthed middleware)
+    // Server-side HTML guards don't work with Vite's SPA fallback handler
     
     // Register admin routes and bootstrap
     registerAdminRoutes(app);

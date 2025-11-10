@@ -107,6 +107,7 @@ Prospects, discovery, outreach, meetings, sheets sync
 - **Prometheus**: For collecting and monitoring application metrics via the `/metrics` endpoint
 
 ## Recent Changes (November 2025)
+- **Authentication & Security Architecture**: Dual-layer protection for SPA with client-side route guards (`PrivateRoute`) and API endpoint authentication (`ensureAuthed` middleware). Note: Server-side HTML route guards are not compatible with Vite's SPA fallback handler.
 - **Complete Authentication System**: Integrated comprehensive auth with password reset, TOTP 2FA, backup codes, email/SMS fallback, and admin 2FA enforcement
 - **Advanced Authentication Features**:
   - **Admin Hard-Gate TOTP Setup**: `ENFORCE_ADMIN_TOTP_SETUP` flag prevents admins from using fallback authentication until TOTP is configured, eliminating 2FA bypass vulnerability
@@ -118,13 +119,17 @@ Prospects, discovery, outreach, meetings, sheets sync
 - **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
 - **Login-Only Landing Page**:
   - **Landing Page**: `/` now serves a clean, centered login panel (`client/src/pages/login-landing.tsx`) with auto-redirect for authenticated users to `/dashboard`
-  - **Protected Dashboard**: Main dashboard moved from `/` to `/dashboard` route, fully protected by both client-side (`PrivateRoute`) and server-side (`protectDashboard` middleware) guards
+  - **Protected Dashboard**: Main dashboard moved from `/` to `/dashboard` route, fully protected by client-side (`PrivateRoute`) guards and API endpoint authentication
   - **Conditional Header**: Header component auto-hides on landing page (`/` and `/login`) for unauthenticated users while preserving full navigation (Dashboard, Records, Jobs, Duplicates, Analytics, CRM) for authenticated users
   - **Routing Architecture**: All protected routes (Records, Jobs, Duplicates, Analytics, CRM, Account, Admin) wrapped in `PrivateRoute` component; public routes (landing, login, forgot, reset, 2FA pages) remain accessible
-  - **Server-Side Protection**: `server/middleware/protectDashboard.ts` middleware registered early in chain (after session setup) to redirect unauthenticated GET requests to `/dashboard` → `/login`
-- **Admin Panel for User Management** (Latest):
+- **Admin Panel for User Management**:
   - **Admin Bootstrap**: `POST /api/admin/bootstrap` endpoint creates/updates admin user from Replit Secrets (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME) using scrypt hashing
   - **Admin Routes**: Protected by `ensureAdmin` middleware, includes user list, role management (admin/user), activation controls, and password reset trigger
+  - **Admin Create Users**: `POST /api/admin/users` creates new users (admin-only) with role whitelist validation ["user", "admin"]
   - **Admin UI**: Table-based interface at `/admin/users` with role dropdown, active checkbox, and reset password button per user
   - **Login Flow Enhancement**: Admin users automatically redirect to `/admin/users` after login instead of `/dashboard`
   - **Security**: Server-side validation on PATCH endpoint whitelists role values and validates isActive (0 or 1)
+- **CRM Quick Discover Feature**:
+  - **Quick Discover Button**: One-click prospect discovery using saved default search parameters (localStorage)
+  - **Save Defaults**: "Save as default" button in Discovery tab stores search query + location for quick access
+  - **Fixed API Calls**: Corrected `apiRequest` parameter order throughout CRM mutations (`apiRequest("POST", url, data)`)

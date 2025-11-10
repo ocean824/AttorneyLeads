@@ -140,7 +140,9 @@ export function registerAuthRoutes(app: Express) {
     if (req.session?.user) {
       res.json({ user: req.session.user });
     } else {
-      res.json({ user: null });
+      // Return 401 for unauthenticated requests (not 200 with null)
+      // This makes client-side guards work correctly
+      res.status(401).json({ user: null });
     }
   });
 
