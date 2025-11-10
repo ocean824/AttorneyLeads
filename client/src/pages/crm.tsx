@@ -56,10 +56,7 @@ export default function CRMPage() {
   // Submit Lead Form
   const submitLeadMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return await apiRequest("/api/crm/outreach/send", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return await apiRequest("POST", "/api/crm/outreach/send", data);
     },
     onSuccess: () => {
       setSubmitted(true);
@@ -81,9 +78,9 @@ export default function CRMPage() {
   // Discover Prospects
   const discoverProspectsMutation = useMutation({
     mutationFn: async (params: { searchQuery: string; location: string }) => {
-      return await apiRequest("/api/crm/discover", {
-        method: "POST",
-        body: JSON.stringify({ ...params, platform: "linkedin" }),
+      return await apiRequest("POST", "/api/crm/discover", {
+        ...params,
+        platform: "linkedin",
       });
     },
     onSuccess: (data: any) => {
@@ -111,9 +108,8 @@ export default function CRMPage() {
       const endpoint = params.type === "prospects" 
         ? "/api/crm/sheets/sync-prospects"
         : "/api/crm/sheets/sync-records";
-      return await apiRequest(endpoint, {
-        method: "POST",
-        body: JSON.stringify({ spreadsheetId: params.spreadsheetId }),
+      return await apiRequest("POST", endpoint, {
+        spreadsheetId: params.spreadsheetId,
       });
     },
     onSuccess: (data: any) => {
