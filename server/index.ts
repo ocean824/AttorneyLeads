@@ -6,6 +6,8 @@ import { securityHeaders } from "./middleware/securityHeaders";
 import { rateLimiter } from "./middleware/rateLimiter";
 import { registerDashboardGuard } from "./middleware/protectDashboard";
 import { registerObservabilityRoutes } from "./observability";
+import { registerAdminRoutes } from "./admin-routes";
+import { registerAdminBootstrap } from "./admin-bootstrap";
 import { logger } from "./logger";
 
 const app = express();
@@ -45,6 +47,10 @@ registerObservabilityRoutes(app);
     
     // Protect /dashboard route (redirect unauthenticated GET requests)
     registerDashboardGuard(app);
+    
+    // Register admin routes and bootstrap
+    registerAdminRoutes(app);
+    registerAdminBootstrap(app);
     
     // Register /api routes and get the underlying HTTP server
     const server = await registerRoutes(app);
