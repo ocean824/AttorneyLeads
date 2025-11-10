@@ -136,6 +136,30 @@ Prospects, discovery, outreach, meetings, sheets sync
 - **Prometheus**: For collecting and monitoring application metrics via the `/metrics` endpoint
 
 ## Recent Changes (November 2025)
+
+### Enhanced Scraper Engine - Phase 1 Complete (November 10, 2025)
+**Data Foundation Layer** - All tasks architect-reviewed and production-ready:
+
+1. **Database Schema Expansion**:
+   - Added 5 new production-ready tables: `arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`
+   - All tables include proper foreign keys with cascade deletes, retry logic fields, and status tracking
+   - Performance indexes added for all high-cardinality FKs (arrestRecordId, sessionId, userId) and filtered columns (status, retrievalStatus, etc.)
+   - 15 database indexes created for production-scale query performance
+
+2. **Python Retrieval Modules**:
+   - **Document Retriever** (`server/document_retriever.py`): Retrieves affidavits, offense reports, booking sheets, mugshots with retry logic, file verification (SHA-256), and local storage
+   - **Docket Retriever** (`server/docket_retriever.py`): Court docket retrieval with fuzzy name matching (Levenshtein), date proximity analysis, charge alignment, and confidence scoring
+   - **Critical Fix**: All county-specific methods return structured status dicts (success/failed/not_found) on every code path for complete observability
+
+3. **Storage Layer** (`server/storage.ts`):
+   - Extended IStorage interface with methods for all 5 new tables
+   - Implemented DbStorage CRUD methods with proper filtering, ordering, and timestamp management
+   - Agent interactions ordered oldest-first (ASC) for conversation flow
+   - Documents/dockets/logs ordered newest-first (DESC)
+   - Auto-refresh updatedAt timestamps on all updates
+
+**Next Steps**: Phase 2 (AI Agent), Phase 3 (Visualization), Phase 4 (Export), Phase 5 (Notifications), Phase 6 (CRM Delivery)
+
 - **Authentication & Security Architecture**: Triple-layer protection for SPA:
   1. **Server-Side HTML Guard**: `protectDashboard` middleware redirects unauthenticated GET requests to protected routes (runs before Vite)
   2. **Client-Side Guards**: `PrivateRoute` component for defense-in-depth and better UX
