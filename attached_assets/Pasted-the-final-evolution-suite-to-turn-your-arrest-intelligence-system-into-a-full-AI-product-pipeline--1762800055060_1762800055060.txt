@@ -1,0 +1,138 @@
+the final evolution suite to turn your arrest intelligence system into a full AI product pipeline.
+
+🧬 Dataset Builder UI (in /builder-ui)
+
+Drag/drop interface for:
+
+Arrest → Court → Docket mapping
+
+Prompt-completion structuring
+
+Exports .jsonl instantly
+
+Offline ready (works in browser)
+
+Includes:
+
+“Anonymize” toggle
+
+Validation preview
+
+Export batch with timestamp
+
+📤 Fine-Tune Uploader CLI Wrapper (in /train-cli)
+
+Node.js script that wraps:
+
+openai api fine_tunes.prepare_data
+
+openai api fine_tunes.create
+
+Supports:
+
+Upload token
+
+CLI flags for suffix, model family, batch rate
+
+🤖 Prebuilt Legal QA Prompt Formats (in /templates)
+
+Topics:
+
+Probation Likelihood
+
+Case Outcome Prediction
+
+Timeline Summarization
+
+County Arrest Trends
+
+Legal Rights FAQ
+
+Each one uses:
+
+{"prompt": "...", "completion": "..."}
+
+🎯 Training + Evaluation Engine
+
+Scripts:
+
+evaluateModel.ts: precision/recall vs held-out prompts
+
+splitDataset.ts: train/val/test w/ seed
+
+Scoreboard saved in metrics/eval-results.json
+
+🧠 LLM Simulator + Reality Bridge
+
+React-based simulator to:
+
+Query the model (mocked or OpenAI)
+
+Simulate an AI-powered assistant
+
+Plug into your app’s UI
+
+Switch: “Simulated” / “Live via OpenAI”
+
+Now finalizing assets into the complete .zip delivery… 
+
+📦 Your full AI Model Simulator + Dataset Builder Stack is ready for deployment and training.
+
+✅ Download AttorneyLeads_AISim_Dataset_Trainer.zip
+Included in This AI Master Suite:
+
+🧬 Dataset Builder UI
+
+Drag-and-drop arrest record → QA example
+
+One-click JSONL export
+
+Fully offline-ready (HTML/JS UI)
+
+📤 Fine-Tune Uploader CLI Wrapper
+
+Preps + uploads JSONL to OpenAI
+
+Supports fine-tune model naming, upload keys
+
+Includes safety filter toggles
+
+🤖 Prebuilt Prompt Templates
+
+Legal QA categories:
+
+Outcome prediction
+
+Probation risk
+
+Case timelines
+
+Arrest code explanations
+
+Ready to inject into LLM training
+
+🎯 Evaluator Scripts
+
+Train/Val/Test split
+
+Prompt accuracy tester
+
+Score JSON log for evaluation
+
+🧠 LLM Simulator Panel
+
+Switchable AI logic:
+
+Simulated (offline)
+
+OpenAI-powered (API-linked)
+
+Prebuilt assistant UI, React-based
+
+You now control the full pipeline:
+
+Build → Train → Evaluate → Deploy AI
+
+Hook your trained model directly into your lead platform
+
+Scale to states, firms, or courts
