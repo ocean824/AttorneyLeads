@@ -1,0 +1,73 @@
+What’s included
+
+Coverage gate (Vitest) — fails if below thresholds (Lines/Statements ≥ 80%, Funcs ≥ 75%, Branches ≥ 70%).
+
+OpenAPI generator (server/docs/generateOpenAPI.mjs) → writes public/docs/openapi.json.
+
+Docs mount (server/docs/mountDocs.ts) → serves /api/docs (ReDoc) + /api/docs/openapi.json.
+
+Strict docs gate in CI runner (scripts/ci.run.full.mjs) — fails if 0 routes in spec.
+
+Extra E2E spec (tests/auth.fallback_pdf.test.ts) covering:
+
+Backup codes generation + PDF download (accepts PDF or text fallback)
+
+Email OTP fallback path (test-only token echo for validation)
+
+Files
+vitest.config.ts                     # adds coverage thresholds & keeps test DB aliases
+server/docs/paths.json               # route manifest (kept simple + explicit)
+server/docs/generateOpenAPI.mjs      # builds openapi.json (strictly fails on 0 paths)
+server/docs/mountDocs.ts             # mounts /api/docs and /api/docs/openapi.json
+scripts/ci.run.full.mjs              # runs tests + builds docs + docs strict gate
+server/patches/auth-routes.OTP_TEST_NOTE.txt
+tests/auth.fallback_pdf.test.ts      # extra E2E covering backup codes PDF + email fallback
+AUTH_CI_DOCS_README.md               # wiring instructions
+
+Quick wire-up
+
+Install dev deps
+
+npm i -D vitest supertest better-sqlite3 drizzle-orm zod
+# optional for real PDF output:
+npm i pdfkit
+
+
+Server bootstrap (docs)
+
+// server/index.ts
+import { registerDocsRoutes } from "./server/docs/mountDocs";
+registerDocsRoutes(app);
+
+
+Package scripts
+
+{
+  "scripts": {
+    "test:e2e": "vitest run -c vitest.config.ts --dir tests",
+    "docs:build": "node server/docs/generateOpenAPI.mjs",
+    "ci:run:full": "node scripts/ci.run.full.mjs"
+  }
+}
+
+
+Run locally
+
+npm run test:e2e
+npm run docs:build
+
+
+Open /api/docs to view your API (served via ReDoc).
+
+Test-only OTP echo (for E2E)
+
+To let the fallback OTP test verify, enable:
+
+ALLOW_TEST_OTP_RESPONSE=true
+
+
+Then apply the tiny tweak in /api/auth/otp/send per the included note:
+
+When ALLOW_TEST_OTP_RESPONSE === "true", include the token in the JSON response so the test can confirm the flow.
+
+This echo is test-only. Keep it disabled in production.

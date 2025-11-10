@@ -1,0 +1,74 @@
+Here's a clean React + Tailwind frontend form code tailored for your Lead Generation Workflow using Replit. It collects lead details and submits to your backend (e.g., /api/outreach/send) for automated outreach and CRM logging.
+
+Let me render this in a canvas for easy preview/editing.
+
+Leadgen Form Ui
+· typescript
+import { useState } from "react";
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await fetch("/api/outreach/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(formData)
+      });
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Submission failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  if (submitted) {
+    return (
+      <div className="p-6 text-center">
+        <h2 className="text-2xl font-semibold text-green-600">Thank you!</h2>
+        <p className="mt-2 text-gray-600">We'll be in touch shortly.</p>
+      </div>
+    );
+  }
+
+
+  return (
+    <Card className="max-w-md mx-auto mt-10 shadow-xl p-6">
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="fullName">Full Name</Label>
+            <Input id="fullName" name="fullName" required onChange={handleChange} />
+          </div>
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" required onChange={handleChange} />
+          </div>
+          <div>
+            <Label htmlFor="company">Company</Label>
+            <Input id="company" name="company" onChange={handleChange} />
+          </div>
+          <div>
+            <Label htmlFor="message">Message (Optional)</Label>
+            <Input id="message" name="message" onChange={handleChange} />
+          </div>
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Sending..." : "Get Demo & Info"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
+✅ Here’s your responsive lead generation form component. It:
+
+Captures name, email, company, and optional message
+
+Submits to /api/outreach/send (which you can wire to backend logging and automation)
+
+Shows a success message after submission

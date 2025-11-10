@@ -1,0 +1,108 @@
+Leadgen Form Ui
+· typescript
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+
+export default function LeadGenLandingPage() {
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    company: "",
+    message: ""
+  });
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await fetch("/api/outreach/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(formData)
+      });
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Submission failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const openCalendly = () => {
+    window.Calendly.initPopupWidget({
+      url: 'https://calendly.com/your-schedule-link/demo'
+    });
+    return false;
+  };
+
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <h1 className="text-4xl font-bold text-center text-blue-900 mb-6">CRM-Driven Growth for Law Firms</h1>
+      <p className="text-lg text-center text-gray-600 mb-10 max-w-2xl">
+        Discover how our lead generation tools can help your legal team scale faster with automated outreach and client engagement.
+      </p>
+
+
+      {submitted ? (
+        <div className="p-6 text-center">
+          <h2 className="text-2xl font-semibold text-green-600">Thank you!</h2>
+          <p className="mt-2 text-gray-600">We'll be in touch shortly.</p>
+        </div>
+      ) : (
+        <Card className="w-full max-w-lg shadow-lg">
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input id="fullName" name="fullName" required onChange={handleChange} />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" required onChange={handleChange} />
+              </div>
+              <div>
+                <Label htmlFor="company">Company</Label>
+                <Input id="company" name="company" onChange={handleChange} />
+              </div>
+              <div>
+                <Label htmlFor="message">Message (Optional)</Label>
+                <Input id="message" name="message" onChange={handleChange} />
+              </div>
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Sending..." : "Submit & Get Info"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+
+      <div className="mt-10">
+        <Button onClick={openCalendly} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          Book a Free Demo Call
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+
+✅ Your lead generation form is now embedded in a full landing page layout with a Calendly popup integration button at the bottom (Book a Free Demo Call).

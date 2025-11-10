@@ -1,0 +1,176 @@
+1) Lock the whole app behind the landing page (HARD STOP)
+A. Add a global auth gate middleware (UI + API)
+
+Create server/middleware/authGate.ts:
+
+// server/middleware/authGate.ts
+import type { Express, Request, Response, NextFunction } from "express";
+
+const PUBLIC_HTML_PATHS = new Set<string>([
+  "/", "/login", "/2fa", "/2fa-fallback", "/forgot", "/reset",
+]);
+
+// Anything under /api/auth stays public; everything else under /api requires auth
+const API_PUBLIC_PREFIXES = [/^\/api\/auth(\/|$)/, /^\/healthz$/, /^\/readyz$/, /^\/metrics$/];
+
+function isHtmlRequest(req: Request) {
+  const accept = (req.headers["accept"] || "").toString();
+  return accept.includes("text/html");
+}
+
+function isApiPublic(req: Request) {
+  const path = req.path;
+  return API_PUBLIC_PREFIXES.some((re) => re.test(path));
+}
+
+export function registerAuthGate(app: Express) {
+  // 1) Gate SPA page navigation
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" || !isHtmlRequest(req)) return next();
+
+    // Allow public landing/login screens
+    if (PUBLIC_HTML_PATHS.has(req.path)) return next();
+
+    // Block everything else unless logged in
+    const loggedIn = !!(req.session as any)?.user;
+    if (!loggedIn) return res.redirect(302, "/");
+    next();
+  });
+
+  // 2) Gate APIs (except /api/auth/* and observability)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api")) return next();
+    if (isApiPublic(req)) return next();
+
+    const user = (req.session as any)?.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    next();
+  });
+}
+
+
+Wire it in server/index.ts (right after sessions are set up and before routes):
+
+// server/index.ts (add these near the top with other imports)
+import { registerAuthGate } from "./middleware/authGate";
+
+// ... inside the async bootstrap, after setupSession(app) and BEFORE registerRoutes/app route registration:
+registerAuthGate(app);
+
+
+This enforces the “hard stop”: all HTML routes except /, /login, /2fa*, /forgot, /reset redirect to / if not logged in. And all /api/* except /api/auth/* (and /healthz etc.) require a session.
+
+B. Keep the landing page w/ login at /
+
+Make sure your router points / to the login landing. If your App.tsx already routes / → LoginLanding, you’re good. If not, ensure this snippet appears in your router:
+
+// client/src/App.tsx
+<Switch>
+  <Route path="/" component={LoginLanding} />
+  <Route path="/login" component={Login} />
+
+  {/* Private routes */}
+  <Route path="/dashboard">
+    <PrivateRoute><Dashboard /></PrivateRoute>
+  </Route>
+  <Route path="/crm">
+    <PrivateRoute><CRM /></PrivateRoute>
+  </Route>
+  <Route path="/records">
+    <PrivateRoute><Records /></PrivateRoute>
+  </Route>
+  <Route path="/jobs">
+    <PrivateRoute><Jobs /></PrivateRoute>
+  </Route>
+  <Route path="/duplicates">
+    <PrivateRoute><Duplicates /></PrivateRoute>
+  </Route>
+  <Route path="/analytics">
+    <PrivateRoute><Analytics /></PrivateRoute>
+  </Route>
+
+  <Route component={NotFound} />
+</Switch>
+
+
+(Your repo already includes PrivateRoute. This guarantees CRM pages won’t render if someone manually types in a URL.)
+
+2) Admin-only account creation (no public registration)
+
+There is no /api/auth/register route (good). Let’s add a clean admin create user endpoint.
+
+Patch server/admin-routes.ts – add a POST /api/admin/users:
+
+// server/admin-routes.ts
+import type { Express, Request, Response } from "express";
+import { ensureAdmin } from "./middleware/ensureAdmin";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import crypto from "crypto";
+import { hashPassword } from "./security/password"; // <-- add this
+
+export function registerAdminRoutes(app: Express) {
+  app.get("/api/admin/users", ensureAdmin, async (_req: Request, res: Response) => {
+    const rows = await db.select().from(users);
+    const safe = rows.map(r => ({ id: r.id, email: r.email, role: r.role as "user" | "admin", isActive: r.isActive, lastLoginAt: r.lastLoginAt, createdAt: r.createdAt }));
+    res.json({ users: safe });
+  });
+
+  // NEW: create user
+  app.post("/api/admin/users", ensureAdmin, async (req: Request, res: Response) => {
+    const { email, password, role = "user" } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: "email and password are required" });
+    const existing = await db.query.users.findFirst({ where: eq(users.email, email) as any });
+    if (existing) return res.status(409).json({ error: "User already exists" });
+
+    const passwordHash = await hashPassword(password);
+    const [row] = await db.insert(users).values({
+      email,
+      passwordHash,
+      role,
+      isActive: 1,
+    }).returning();
+
+    res.status(201).json({ user: { id: row.id, email: row.email, role: row.role } });
+  });
+
+  app.patch("/api/admin/users/:id", ensureAdmin, async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const partial = req.body || {};
+    const updates: any = {};
+    if (typeof partial.role === "string") updates.role = partial.role;
+    if (typeof partial.isActive === "number") updates.isActive = partial.isActive;
+    if (partial.password) {
+      updates.passwordHash = await hashPassword(partial.password);
+    }
+
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No updates" });
+    await db.update(users).set(updates).where(eq(users.id, id));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/admin/users/:id/reset", ensureAdmin, async (_req: Request, res: Response) => {
+    const token = crypto.randomBytes(24).toString("hex");
+    const payload: any = { ok: true };
+    if (process.env.ALLOW_TEST_OTP_RESPONSE === "true") payload.token = token;
+    res.json(payload);
+  });
+}
+
+
+Admin bootstrap (unchanged): POST /api/admin/bootstrap seeds the admin from secrets.
+
+Secrets you must set (Replit → Secrets):
+
+ADMIN_EMAIL — your admin email
+
+ADMIN_PASSWORD — strong password
+
+ADMIN_NAME (optional)
+
+SESSION_SECRET — strong random string
+
+Then call (once):
+
+POST /api/admin/bootstrap

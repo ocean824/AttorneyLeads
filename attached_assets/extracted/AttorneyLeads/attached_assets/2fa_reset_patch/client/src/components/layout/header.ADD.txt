@@ -1,0 +1,7 @@
+
+// In Header, add a link so signed-in users can reach Account Security:
+{me && (
+  <Link href="/account/security">
+    <Button variant="outline" className="mr-2">Account</Button>
+  </Link>
+)}

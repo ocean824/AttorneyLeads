@@ -1,0 +1,1385 @@
+A) Executive Overview + System Diagram
+
+Executive overview
+
+AttorneyLeads is an AI-augmented lead-generation and light-CRM platform for criminal defense attorneys. It scrapes public Florida arrest records via a Python scraper, stores and normalizes them in Postgres via Drizzle ORM, enriches each record with OpenAI-powered charge classification and risk scoring, deduplicates and prioritizes high-value leads, and then syncs them into a CRM workflow that integrates with PhantomBuster (prospect discovery), Calendly (meeting scheduling), and Google Sheets (reporting & exports) — all running in a single Replit workspace (Node 20 + TypeScript + Express + React + Vite + Neon Postgres).
+
+System diagram (conceptual)
+
+               +--------------------------+
+               |      AttorneyLeads UI    |
+               |  React + Vite SPA (client) 
+               +--------------+-----------+
+                              |
+                              | HTTPS (JSON, fetch, React Query)
+                              v
+                 +------------+-------------+
+                 |   Express API Server     |
+                 |  server/index.ts, routes.ts
+                 +------+-------------------+
+                        |
+      +-----------------+------------------------------+
+      |                 |                              |
+      v                 v                              v
++-----+--------+  +-----+----------------+     +-------+------------------+
+|  Drizzle ORM |  |  Python Scraper      |     | External Integrations   |
+|  db.ts       |  |  server/scraper.py   |     |                          |
++-----+--------+  +-----------+----------+     |  - OpenAI (ai-service)   |
+      |                       |                |  - PhantomBuster         |
+      | SQL (Neon)            | CLI spawn      |  - Calendly              |
+      v                       v                |  - Google Sheets         |
++-----+-------------------------------+        +--------------------------+
+|   Neon Postgres (arrest_records,    |
+|   scrape_jobs, crm_* tables, etc.)  |
++-------------------------------------+
+
+B) Repository Tree (final, conceptual)
+
+This reflects the existing repo plus the new docs/openapi we added and the structure you should follow for scripts/tests/config:
+
+AttorneyLeads/
+  .gitignore
+  .replit
+  package.json
+  package-lock.json
+  tsconfig.json
+  vite.config.ts
+  drizzle.config.ts
+  tailwind.config.ts
+  postcss.config.js
+  replit.md
+  main.py
+  pyproject.toml
+  uv.lock
+
+  .env.example              # NEW: env var skeleton
+
+  client/                   # React UI (SPA)
+    public/
+    src/
+      App.tsx
+      main.tsx
+      components/
+      hooks/
+      lib/
+      pages/
+      index.css
+      ...
+
+  app/                      # (Optional minimal shim if you want; currently not required)
+    README.md               # You can add a note that UI lives in /client
+
+  server/
+    index.ts                # Express entry
+    routes.ts               # Core scrape/records/analytics/AI routes
+    crm-routes.ts           # CRM & outreach routes
+    db.ts                   # Drizzle + Neon connection
+    storage.ts              # IStorage implementation (Drizzle queries)
+    lead-scoring.ts         # Lead scoring utility
+    deduplication.ts        # Duplicate detection
+    ai-service.ts           # OpenAI enrichment
+    phantombuster-service.ts
+    calendly-service.ts
+    sheets-service.ts
+    vite.ts                 # Dev/build static serving for client
+    scraper.py              # Python scraper
+    update-scores.ts        # Maintenance script (lead scores)
+    storage.ts
+    openapi.yml             # NEW: API skeleton spec (you’ll extend)
+
+  shared/
+    schema.ts               # Drizzle schema + zod (full domain model)
+
+  docs/
+    ARCHITECTURE.md         # NEW: architecture skeleton
+    OPERATIONS.md           # NEW: ops/env/runbook skeleton
+    DEPLOY_REPLIT.md        # NEW: Replit deploy skeleton
+    PRD/
+      PRD_MASTER.md         # NEW: product master doc (skeleton)
+      FEATURES/
+        lead-scraping-and-intake.md  # NEW: sample feature PRD (skeleton)
+
+  # Recommended to add:
+  config/
+    featureFlags.ts         # (recommended) feature toggles
+    permissions.ts          # (recommended) roles/actions matrix
+    rateLimits.ts           # (recommended) route-level throttles
+
+  scripts/                  # (recommended) automation scripts
+    seed.ts
+    smoke-test.ts
+    envDoctor.ts
+    dbReset.ts
+
+  tests/                    # (recommended) tests
+    api.e2e.test.ts
+    lead-scoring.test.ts
+    deduplication.test.ts
+    storage.test.ts
+    crm-routes.test.ts
+
+
+Note: The ZIP I generated below includes the original TypeScript/React/Express code plus the new docs, .env.example, and server/openapi.yml skeleton. Scripts/tests/config listed above are recommended and shown in code later, but not yet written into the ZIP — you can add them directly in Replit by copy/paste.
+
+C) Commands to Run on Replit (dev + prod)
+
+From the project root (AttorneyLeads/):
+
+# Install
+npm install
+
+# Run dev (same as .replit)
+npm run dev
+
+# Build client + bundle server
+npm run build
+
+# Start production-style server (serves API + built client)
+npm start
+
+# Drizzle migrations (using schema in shared/schema.ts)
+npx drizzle-kit push  # or npm run db:push
+
+
+On Replit, .replit is already configured to:
+
+Use Node 20, Postgres 16, and Python 3.11.
+
+Run npm run dev in the “Start application” workflow.
+
+Serve port 5000, exposed externally.
+
+D) New/Changed Files (core ones, full contents)
+1. .env.example (NEW)
+# Core database
+DATABASE_URL=postgres://user:password@host:5432/dbname
+
+# OpenAI via Replit AI Integrations
+AI_INTEGRATIONS_OPENAI_API_KEY=your-openai-key
+AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1
+
+# External integrations
+PHANTOMBUSTER_API_KEY=your-phantombuster-key
+PHANTOM_AGENT_ID=your-phantom-agent-id
+CALENDLY_API_KEY=your-calendly-key
+CALENDLY_USER_URI=your-calendly-user-uri
+GOOGLE_SHEETS_TOKEN=your-google-sheets-token
+
+# Runtime
+PORT=5000
+
+2. docs/ARCHITECTURE.md (NEW, skeleton)
+# Architecture
+
+## High-Level Overview
+
+AttorneyLeads is a single-workspace Replit app composed of:
+
+- **React + Vite SPA (`client/`)**
+  - Dashboard (jobs, analytics)
+  - Arrest records browser
+  - Duplicate management
+  - CRM views (prospects, campaigns, meetings)
+
+- **Express API Server (`server/`)**
+  - HTTP API (`/api/**`) for scrape jobs, records, duplicates, analytics, CRM
+  - Integrations:
+    - **Neon Postgres** via Drizzle ORM (`server/db.ts`, `shared/schema.ts`)
+    - **Python Scraper** (`server/scraper.py`) for county sites
+    - **OpenAI** via `ai-service.ts`
+    - **PhantomBuster**, **Calendly**, **Google Sheets**
+
+- **Shared Schema (`shared/`)**
+  - Drizzle schema & zod validation (`schema.ts`) shared by server and client.
+
+## Module Boundaries
+
+- `server/routes.ts`
+  - Arrest record flows: stats, analytics, scraping, records, duplicates, AI test.
+- `server/crm-routes.ts`
+  - CRM flows: prospects, outreach, meetings, sheets/calendly sync.
+- `server/storage.ts`
+  - Data access via Drizzle; implements `IStorage` with methods grouped by domain.
+- `server/ai-service.ts`
+  - Encapsulates OpenAI calls for AI enrichment (charge classification, risk).
+- `server/lead-scoring.ts`
+  - Lead scoring+labeling utilities; stateless pure functions.
+
+### Dependencies
+
+- `client` → calls `server` via REST (`/api/**`)
+- `server` → uses `shared/schema` and `db` (Drizzle)
+- `server` → Python scraper via `child_process.spawn`
+- `server` → external services via dedicated service modules
+
+3. docs/OPERATIONS.md (NEW, skeleton)
+# Operations
+
+## Environment Variables
+
+| Name                          | Required | Description                                       |
+|-------------------------------|----------|---------------------------------------------------|
+| `DATABASE_URL`                | Yes      | Postgres connection string (Neon recommended).    |
+| `AI_INTEGRATIONS_OPENAI_API_KEY` | Yes  | OpenAI API key via Replit AI Integrations.        |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL` | Yes | OpenAI base URL (Replit AI proxy).                |
+| `PHANTOMBUSTER_API_KEY`       | Optional | PhantomBuster API key for prospect discovery.     |
+| `PHANTOM_AGENT_ID`            | Optional | Specific PhantomBuster container/agent ID.        |
+| `CALENDLY_API_KEY`            | Optional | Calendly API key.                                 |
+| `CALENDLY_USER_URI`           | Optional | Calendly user URI for scheduling.                 |
+| `GOOGLE_SHEETS_TOKEN`         | Optional | OAuth token/secret for Sheets integration.        |
+| `PORT`                        | No       | HTTP port (defaults to 5000 on Replit).          |
+
+> Assumed: Secrets are stored in Replit’s Secrets panel; no `.env` committed.
+
+## Logging & Error Handling (Current)
+
+- Server logs to stdout using `vite.ts` logger and `console.error`.
+- Express has a final error handler in `server/index.ts` that:
+  - Derives `status` from `err.status`/`err.statusCode`.
+  - Sends `{ message }` JSON.
+  - Re-throws the error for Replit logging.
+
+Recommended improvement (see later sections):
+
+- Introduce typed error classes + centralized error middleware that returns:
+  ```json
+  { "code": "string", "message": "string", "details": {}, "requestId": "string" }
+
+Basic Runbooks
+Server Won’t Start
+
+Verify DATABASE_URL is set and valid.
+
+Check for migration mismatches:
+
+Run npx drizzle-kit push.
+
+Run npm run dev in shell and inspect logs.
+
+Scrape Jobs Failing
+
+Check logs for /api/scrape/start requests.
+
+Ensure Python dependencies are installed (requests, bs4).
+
+Confirm county endpoints are reachable (no Captcha changes).
+
+Inspect server/scraper.py and update selectors if counties changed HTML.
+
+AI Enrichment Failing
+
+Call /api/ai/test from browser or curl.
+
+Verify AI_INTEGRATIONS_OPENAI_API_KEY and AI_INTEGRATIONS_OPENAI_BASE_URL.
+
+Check Replit AI integration logs if available.
+
+Replit “First Run” Checklist
+
+Paste DATABASE_URL and OpenAI keys into Replit Secrets.
+
+npm install
+
+npx drizzle-kit push (or npm run db:push)
+
+npm run dev
+
+Open the webview at /.
+
+
+### 4. `docs/DEPLOY_REPLIT.md`  *(NEW)*
+
+```md
+# Deploy on Replit
+
+## Development
+
+1. Open the Replit workspace containing this repo.
+2. In the Shell:
+   ```bash
+   npm install
+   npm run dev
+
+
+Ensure port 5000 is exposed (already configured in .replit).
+
+The React app + API will be served from the same port.
+
+Production-like
+
+Install dependencies:
+
+npm install
+
+
+Build:
+
+npm run build
+
+
+Start:
+
+npm start
+
+
+Confirm /api/stats returns JSON and / serves the SPA.
+
+Database (Postgres / Neon)
+
+Set DATABASE_URL in Replit Secrets (Neon connection string).
+
+Run:
+
+npx drizzle-kit push
+
+
+which uses shared/schema.ts to create/update tables.
+
+Assumed: For now we rely on drizzle-kit push instead of hand-written SQL migrations.
+
+
+### 5. `docs/PRD/PRD_MASTER.md`  *(NEW, skeleton)*
+
+```md
+# AttorneyLeads – PRD MASTER
+
+## 1. Scope & Vision
+
+AttorneyLeads is a lead-generation and intake acceleration tool for criminal defense
+attorneys. It turns public arrest records into prioritized, AI-enriched leads and
+feeds them into a lightweight CRM workflow with outreach and scheduling.
+
+### Out of Scope (for now)
+
+- Full-blown law firm practice management.
+- E-filing, billing, and matter management beyond basic lead tracking.
+
+## 2. Personas
+
+- **Criminal Defense Attorney (Primary)**
+  - Needs a steady pipeline of qualified leads.
+  - Values speed to contact and ability to filter by severity / location.
+
+- **Intake Specialist / Coordinator**
+  - Works daily in the dashboard.
+  - Reviews leads, resolves duplicates, coordinates outreach and bookings.
+
+- **Owner / Operator**
+  - Monitors job throughput, campaign performance, and meetings created.
+
+## 3. Core User Flows
+
+1. **Configure & start a scrape**
+   - Select counties
+   - Toggle “AI enhancement”
+   - Start scrape and see basic status.
+
+2. **Review & deduplicate records**
+   - View new records with AI-generated risk and categories.
+   - See duplicate suggestions and merge/dismiss them.
+
+3. **Launch outreach & schedule consults**
+   - Sync high-priority records into CRM prospects.
+   - Discover additional contact data (PhantomBuster).
+   - Send outreach sequences.
+   - Book consults via Calendly.
+
+4. **Monitor performance**
+   - Stats: record counts, exports, AI coverage.
+   - Analytics: distributions by county, score, charge type, job volume.
+
+## 4. Non-Functional Requirements
+
+- Single Replit workspace, Node 20 + Postgres (Neon).
+- Endpoints respond in < 1s under normal load.
+- Scrape jobs and AI enrichment are asynchronous and resilient to failures.
+- Basic error surfaces in the UI (with retry guidance).
+
+## 5. AI Enhancement Overview
+
+- **Charge Classification** – categorize charges into violent, property, drug, traffic, etc.
+- **Risk Level** – infer low/medium/high based on charges + bond.
+- **Normalization** – transform messy charge text into standardized descriptions.
+- **Lead Scoring Input** – AI features feed into the lead scoring algorithm.
+
+> Detailed behavior per feature is in individual Feature PRDs.
+
+6. docs/PRD/FEATURES/lead-scraping-and-intake.md (NEW, example Feature PRD)
+# Feature PRD – Lead Scraping & Intake
+
+## Problem
+
+Attorneys cannot manually monitor every county jail page for new arrests.
+They need reliable, automated ingestion of fresh records, normalized and
+ranked for follow-up.
+
+## Goals & Success Metrics
+
+- Start a scrape in < 30 seconds.
+- See results ingested within minutes.
+- Maintain > 95% success rate on supported county scrapes.
+
+Success Metrics:
+
+- Time from arrest to lead visibility.
+- Number of successfully scraped records per run.
+- % of records with AI enrichment.
+
+## User Stories
+
+- “As an intake specialist, I want to select one or more counties and start
+  a scrape so I always see the latest arrests.”
+- “As an attorney, I want to see risk level and charge categories so I can
+  focus on high-value leads.”
+- “As an operator, I want insight into recent jobs and failures.”
+
+## UX Notes
+
+- **Scrape Wizard**
+  - Step 1: County selection (checkbox list from `FLORIDA_COUNTIES`).
+  - Step 2: AI toggle (default ON).
+  - Step 3: Confirmation + estimated completion time.
+- **Job List**
+  - Table with job ID, counties, status, recordsFound, aiEnhanced, lastUpdated.
+- **Record List**
+  - Filter by county/date/score.
+  - Badges for risk level (“High Priority”, etc.)
+
+### States
+
+- Loading: skeleton rows while jobs/records load.
+- Empty: helpful copy (“No records yet — start your first scrape.”).
+- Error: toast + inline message with retry link.
+
+## Data Model
+
+- `arrest_records`
+  - id, fullName, bookingDate, charges, bondAmount, county
+  - ai fields: confidenceScore, chargeCategories, normalizedCharges, riskLevel
+
+- `scrape_jobs`
+  - id, jobId, counties, status, recordsFound, aiEnhanced, aiProcessed, errorMessage
+
+## API Contract (High-Level)
+
+- `POST /api/scrape/start`
+  - Body: `{ counties: string[], enableAI: boolean }`
+  - Response: `{ jobId: string, message: string, estimatedTime: string }`
+
+- `GET /api/scrape/jobs`
+  - Response: `ScrapeJob[]`
+
+- `GET /api/scrape/status/:jobId`
+  - Response: `ScrapeJob` with status & counts.
+
+- `GET /api/records`
+  - Query: `county?`, `dateFrom?`, `dateTo?`, `search?`, `page?`, `pageSize?`
+  - Response: `{ records: ArrestRecord[], total: number }`
+
+## AI Behaviors
+
+- On scrape completion, run `enhanceRecordsBatch(records)` via `ai-service.ts`.
+- AI should:
+  - Assign a confidenceScore (0–100).
+  - Classify chargeCategories.
+  - Set riskLevel (low/medium/high) based on charges & bond.
+
+## Analytics & Telemetry
+
+- Count of records per scrape, per county.
+- % scraped records with AI enrichment.
+- Error reasons for failed counties (network, HTML change, etc.).
+
+E) PRD_MASTER + list of remaining PRDs
+
+You now have:
+
+docs/PRD/PRD_MASTER.md – full master PRD (skeleton)
+
+docs/PRD/FEATURES/lead-scraping-and-intake.md – sample Feature PRD
+
+Additional Feature PRDs you should create (filenames only; content can follow same pattern):
+
+docs/PRD/FEATURES/duplicate-detection-and-merge.md
+
+docs/PRD/FEATURES/ai-enrichment-and-lead-scoring.md
+
+docs/PRD/FEATURES/crm-prospects-and-campaigns.md
+
+docs/PRD/FEATURES/meetings-and-calendly-integration.md
+
+docs/PRD/FEATURES/google-sheets-sync-and-export.md
+
+docs/PRD/FEATURES/analytics-and-dashboard.md
+
+F) OpenAPI YAML (Complete – high-level, extendable)
+
+Here is a concise but valid OpenAPI spec covering all live routes discovered in server/routes.ts and server/crm-routes.ts. You can save this as server/openapi.yml (we’ve already placed a minimal skeleton in the ZIP; overwrite it with this richer version):
+
+openapi: 3.1.0
+info:
+  title: AttorneyLeads API
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /api/stats:
+    get:
+      summary: Get summary statistics
+      operationId: getStats
+      responses:
+        '200':
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '500':
+          description: Failed to fetch statistics
+
+  /api/analytics:
+    get:
+      summary: Get analytics for records and jobs
+      operationId: getAnalytics
+      parameters:
+        - in: query
+          name: dateFrom
+          schema: { type: string, format: date }
+        - in: query
+          name: dateTo
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Analytics payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+
+  /api/scrape/start:
+    post:
+      summary: Start a scrape job
+      operationId: startScrape
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartScrapeRequest'
+      responses:
+        '200':
+          description: Scrape job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeStartResponse'
+        '400':
+          description: Validation error
+        '500':
+          description: Failed to start scraping job
+
+  /api/scrape/jobs:
+    get:
+      summary: List scrape jobs
+      operationId: listScrapeJobs
+      responses:
+        '200':
+          description: List of scrape jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScrapeJob' }
+
+  /api/scrape/status/{jobId}:
+    get:
+      summary: Get scrape job status
+      operationId: getScrapeStatus
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Scrape job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapeJob'
+        '404':
+          description: Job not found
+
+  /api/records:
+    get:
+      summary: List arrest records
+      operationId: listRecords
+      parameters:
+        - in: query
+          name: county
+          schema: { type: string }
+        - in: query
+          name: dateFrom
+          schema: { type: string, format: date }
+        - in: query
+          name: dateTo
+          schema: { type: string, format: date }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: Paginated records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordListResponse'
+
+  /api/records/{id}:
+    get:
+      summary: Get a single arrest record
+      operationId: getRecord
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Arrest record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrestRecord'
+        '404':
+          description: Record not found
+    delete:
+      summary: Delete a record
+      operationId: deleteRecord
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Record deleted
+        '404':
+          description: Record not found
+
+  /api/records/bulk-export:
+    post:
+      summary: Bulk export records
+      operationId: bulkExport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkExportRequest'
+      responses:
+        '200':
+          description: Export job created or file generated
+
+  /api/duplicates:
+    get:
+      summary: Get duplicate candidates
+      operationId: listDuplicates
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, merged, dismissed]
+      responses:
+        '200':
+          description: Duplicate candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DuplicateCandidate' }
+
+  /api/duplicates/scan:
+    post:
+      summary: Trigger duplicate scan
+      operationId: scanDuplicates
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scannedCount:
+                    type: integer
+
+  /api/duplicates/{id}/merge:
+    post:
+      summary: Merge a duplicate pair
+      operationId: mergeDuplicate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Duplicate merged
+
+  /api/duplicates/{id}/dismiss:
+    post:
+      summary: Dismiss a duplicate candidate
+      operationId: dismissDuplicate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Duplicate dismissed
+
+  /api/ai/enhance:
+    post:
+      summary: Manually trigger AI enhancement for a batch of records
+      operationId: aiEnhanceBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recordIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Enhancement queued or applied
+
+  /api/ai/test:
+    get:
+      summary: Test AI connectivity
+      operationId: aiTest
+      responses:
+        '200':
+          description: AI connectivity info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AITestResponse'
+
+  /api/crm/prospects:
+    get:
+      summary: List CRM prospects
+      operationId: listProspects
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: source
+          schema: { type: string }
+      responses:
+        '200':
+          description: Prospects
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CrmProspect' }
+    post:
+      summary: Create a CRM prospect
+      operationId: createProspect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProspectRequest'
+      responses:
+        '201':
+          description: Prospect created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrmProspect'
+
+  /api/crm/prospects/{id}:
+    patch:
+      summary: Update a CRM prospect
+      operationId: updateProspect
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProspectRequest'
+      responses:
+        '200':
+          description: Updated prospect
+    delete:
+      summary: Delete a CRM prospect
+      operationId: deleteProspect
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Prospect deleted
+
+  /api/crm/discover:
+    post:
+      summary: Discover new prospects via PhantomBuster
+      operationId: discoverProspects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoverProspectsRequest'
+      responses:
+        '200':
+          description: Discovery started
+
+  /api/crm/outreach/send:
+    post:
+      summary: Send outreach via campaigns
+      operationId: sendOutreach
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOutreachRequest'
+      responses:
+        '200':
+          description: Outreach initiated
+
+  /api/crm/campaigns:
+    get:
+      summary: List outreach campaigns
+      operationId: listCampaigns
+      responses:
+        '200':
+          description: Campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OutreachCampaign' }
+    post:
+      summary: Create outreach campaign
+      operationId: createCampaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCampaignRequest'
+      responses:
+        '201':
+          description: Campaign created
+
+  /api/crm/meetings:
+    get:
+      summary: List scheduled meetings
+      operationId: listMeetings
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        '200':
+          description: Meetings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ScheduledMeeting' }
+
+  /api/crm/meetings/schedule:
+    post:
+      summary: Schedule a meeting via Calendly
+      operationId: scheduleMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleMeetingRequest'
+      responses:
+        '200':
+          description: Meeting scheduled
+
+  /api/crm/calendly/events:
+    get:
+      summary: List Calendly events
+      operationId: listCalendlyEvents
+      responses:
+        '200':
+          description: Events from Calendly
+
+  /api/crm/sheets/sync-prospects:
+    post:
+      summary: Sync prospects to Google Sheets
+      operationId: syncProspectsToSheets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncSheetsRequest'
+      responses:
+        '200':
+          description: Sync completed
+
+  /api/crm/sheets/sync-records:
+    post:
+      summary: Sync arrest records to Google Sheets
+      operationId: syncRecordsToSheets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncSheetsRequest'
+      responses:
+        '200':
+          description: Sync completed
+
+components:
+  schemas:
+    Stats:
+      type: object
+      properties:
+        totalRecords: { type: integer }
+        activeJobs: { type: integer }
+        lastScrapeDate: { type: string, nullable: true }
+        exportCount: { type: integer }
+
+    AnalyticsResponse:
+      type: object
+      properties:
+        recordsByCounty: { type: array, items: { type: object } }
+        leadScoreDistribution: { type: array, items: { type: object } }
+        chargeCategoryDistribution: { type: array, items: { type: object } }
+        jobsOverTime: { type: array, items: { type: object } }
+        aiStats: { type: array, items: { type: object } }
+
+    StartScrapeRequest:
+      type: object
+      required: [counties]
+      properties:
+        counties:
+          type: array
+          items: { type: string }
+        enableAI:
+          type: boolean
+          default: true
+
+    ScrapeStartResponse:
+      type: object
+      properties:
+        jobId: { type: string }
+        message: { type: string }
+        estimatedTime: { type: string }
+
+    ScrapeJob:
+      type: object
+      properties:
+        id: { type: string }
+        jobId: { type: string }
+        counties: { type: string }
+        status: { type: string }
+        recordsFound: { type: integer }
+        aiEnhanced: { type: integer }
+        aiProcessed: { type: integer }
+        errorMessage: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+
+    ArrestRecord:
+      type: object
+      properties:
+        id: { type: string }
+        inmateId: { type: string, nullable: true }
+        fullName: { type: string }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        bookingDate: { type: string }
+        releaseDate: { type: string, nullable: true }
+        charges: { type: string }
+        bondAmount: { type: string, nullable: true }
+        county: { type: string, nullable: true }
+        leadScore: { type: integer, nullable: true }
+        confidenceScore: { type: integer, nullable: true }
+        chargeCategories: { type: string, nullable: true }
+        normalizedCharges: { type: string, nullable: true }
+        riskLevel: { type: string, nullable: true }
+
+    RecordListResponse:
+      type: object
+      properties:
+        records:
+          type: array
+          items: { $ref: '#/components/schemas/ArrestRecord' }
+        total:
+          type: integer
+
+    BulkExportRequest:
+      type: object
+      properties:
+        filters:
+          type: object
+        format:
+          type: string
+          enum: [csv, xlsx]
+        autoExport:
+          type: boolean
+
+    DuplicateCandidate:
+      type: object
+      properties:
+        id: { type: string }
+        recordId1: { type: string }
+        recordId2: { type: string }
+        status: { type: string }
+        similarityScore: { type: integer }
+
+    AITestResponse:
+      type: object
+      properties:
+        connected: { type: boolean }
+        provider: { type: string }
+        model: { type: string }
+        error: { type: string, nullable: true }
+
+    CrmProspect:
+      type: object
+      properties:
+        id: { type: string }
+        fullName: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        status: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+
+    CreateProspectRequest:
+      type: object
+      required: [fullName]
+      properties:
+        fullName: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+
+    UpdateProspectRequest:
+      type: object
+      properties:
+        fullName: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        status: { type: string }
+        source: { type: string }
+
+    DiscoverProspectsRequest:
+      type: object
+      properties:
+        query: { type: string }
+        limit: { type: integer }
+
+    SendOutreachRequest:
+      type: object
+      properties:
+        campaignId: { type: string }
+        prospectIds:
+          type: array
+          items: { type: string }
+
+    OutreachCampaign:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        channel: { type: string }
+        status: { type: string }
+
+    CreateCampaignRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        channel: { type: string }
+        template: { type: string }
+
+    ScheduledMeeting:
+      type: object
+      properties:
+        id: { type: string }
+        prospectId: { type: string }
+        scheduledAt: { type: string }
+        status: { type: string }
+
+    ScheduleMeetingRequest:
+      type: object
+      properties:
+        prospectId: { type: string }
+        timeslot: { type: string }
+
+    SyncSheetsRequest:
+      type: object
+      properties:
+        sheetId: { type: string }
+        range: { type: string }
+
+G) Drizzle Schema & Migrations
+
+The Drizzle schema is already fully defined in shared/schema.ts and used in drizzle.config.ts:
+
+// drizzle.config.ts
+export default defineConfig({
+  out: "./migrations",
+  schema: "./shared/schema.ts",
+  dialect: "postgresql",
+  dbCredentials: { url: process.env.DATABASE_URL },
+});
+
+
+Recommended migration flow (Assumed):
+
+# Generate SQL migrations from shared/schema.ts
+npx drizzle-kit generate
+
+# Or push schema directly (already wired as db:push)
+npm run db:push
+
+
+If you want explicit 001_init.sql etc., the best path is:
+
+npx drizzle-kit generate:pg
+
+
+and commit the generated files under migrations/ or db/migrations/.
+
+H) Tests (Unit + API E2E – example snippets)
+
+These are example test files you can add under tests/. They assume you install vitest and supertest:
+
+npm install --save-dev vitest supertest
+
+
+tests/lead-scoring.test.ts
+
+import { describe, it, expect } from "vitest";
+import { calculateLeadScore, getScoreLabel } from "../server/lead-scoring";
+
+describe("lead-scoring", () => {
+  it("gives higher score for violent felony with high bond", () => {
+    const score = calculateLeadScore({
+      charges: "AGGRAVATED BATTERY WITH DEADLY WEAPON",
+      bondAmount: "50000",
+      county: "Miami-Dade",
+    });
+
+    expect(score).toBeGreaterThan(70);
+    expect(getScoreLabel(score)).toBe("High Priority");
+  });
+
+  it("gives lower score for minor traffic offense", () => {
+    const score = calculateLeadScore({
+      charges: "TRAFFIC - DRIVING WITH EXPIRED TAG",
+      bondAmount: "0",
+      county: "Collier",
+    });
+
+    expect(score).toBeLessThan(40);
+  });
+});
+
+
+tests/api.e2e.test.ts (sketch)
+
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import request from "supertest";
+import http from "http";
+import appServer from "../server/index"; // if you export app or server
+
+let server: http.Server;
+
+beforeAll(async () => {
+  // Assumed: index.ts exports a createServer function or app.
+  // If not, you can factor that out.
+  server = await appServer;
+});
+
+afterAll(async () => {
+  server?.close();
+});
+
+describe("API E2E", () => {
+  it("returns stats", async () => {
+    const res = await request(server).get("/api/stats");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("totalRecords");
+  });
+
+  it("supports scrape start validation", async () => {
+    const res = await request(server)
+      .post("/api/scrape/start")
+      .send({ counties: [], enableAI: true });
+
+    // Expect 400 due to validation if schema is enforced
+    expect([200, 400]).toContain(res.status);
+  });
+});
+
+
+These tests are not yet included in the ZIP; add them in Replit under tests/ and hook up vitest with "test": "vitest" in package.json.
+
+I) Seeds & Scripts (conceptual)
+
+Recommended scripts (add under scripts/):
+
+scripts/seed.ts: create an admin user and a handful of sample records.
+
+scripts/smoke-test.ts: connect to DB, query arrest_records, and hit /api/stats.
+
+scripts/envDoctor.ts: check required env vars using zod.
+
+scripts/dbReset.ts: drop + recreate schema for dev only.
+
+Given how long your existing schema is, these scripts would be several dozen lines each; to keep this answer within bounds I’m not pasting full implementations, but the patterns are straightforward:
+
+// scripts/envDoctor.ts (sketch)
+import { z } from "zod";
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  AI_INTEGRATIONS_OPENAI_API_KEY: z.string().min(1),
+  AI_INTEGRATIONS_OPENAI_BASE_URL: z.string().url(),
+});
+
+const result = envSchema.safeParse(process.env);
+if (!result.success) {
+  console.error("Missing/invalid env vars:", result.error.flatten().fieldErrors);
+  process.exit(1);
+}
+console.log("Env OK");
+
+J) Final Checklist & Known Gaps
+
+What’s complete (in this answer + ZIP):
+
+✅ Executive overview + ASCII system diagram.
+
+✅ High-level repo tree for Replit.
+
+✅ Core commands for dev & prod.
+
+✅ .env.example skeleton (physically in the ZIP).
+
+✅ docs/ARCHITECTURE.md, docs/OPERATIONS.md, docs/DEPLOY_REPLIT.md (physically in the ZIP, skeleton form).
+
+✅ docs/PRD/PRD_MASTER.md & one Feature PRD skeleton (physically in the ZIP).
+
+✅ server/openapi.yml minimal skeleton (physically in the ZIP) + a richer spec in this answer you can paste over it.
+
+Assumptions (labelled “Assumed”):
+
+Assumed Neon Postgres is used via DATABASE_URL.
+
+Assumed OpenAI is accessed via Replit’s AI_INTEGRATIONS_* env vars.
+
+Assumed Replit Secrets are used for all credentials.
+
+Assumed drizzle-kit push is the main migration path (no hand-written SQL yet).
+
+Assumed vitest + supertest will be your chosen test stack.
+
+Known gaps / TODOs for full production hardening:
+
+❌ Error handling is still basic (no typed error classes / requestId propagation yet).
+
+❌ No CI / coverage gate; tests are provided as examples only.
+
+❌ No explicit SQL migrations (001_init.sql, etc.) — rely on Drizzle push.
+
+❌ Rate limiting & security headers are not wired; they should be added via middleware & config/rateLimits.ts.
+
+❌ Observability endpoints (/healthz, /readyz, /metrics) are not defined yet; add later if you use the “Observability Upgrade” follow-up prompt.
+
+How to Validate in 5 Minutes
+
+Setup in Replit
+
+Import the ZIP below into a new Replit workspace or upload it:
+
+Download the Replit-ready ZIP
+
+Open the “Secrets” panel and add at least:
+
+DATABASE_URL
+
+AI_INTEGRATIONS_OPENAI_API_KEY
+
+AI_INTEGRATIONS_OPENAI_BASE_URL
+
+Run
+
+In the Replit shell:
+
+npm install
+npx drizzle-kit push   # or npm run db:push
+npm run dev
+
+
+The .replit workflow will also run npm run dev automatically.
+
+URLs to Open
+
+Main app: https://<your-repl-url>/
+
+Stats API: https://<your-repl-url>/api/stats
+
+Analytics: https://<your-repl-url>/api/analytics
+
+AI connectivity test: https://<your-repl-url>/api/ai/test
+
+Quick Manual Flow
+
+From the UI:
+
+Open the Scrape Wizard and start a scrape for one or more counties with AI enabled.
+
+Visit the Jobs page to see your job appear and update.
+
+Go to Records to confirm new records show up.
+
+Trigger a duplicate scan (if data allows) and view Duplicates.
+
+From the API:
+
+GET /api/stats — confirm JSON with totalRecords, etc.
+
+GET /api/ai/test — confirm connected: true.
+
+Confirm you can see at least one AI-powered effect:
+
+Risk level / score badges on records.
+
+Lead scoring columns in analytics.

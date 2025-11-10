@@ -79,7 +79,7 @@ export function Header() {
                 variant="secondary"
                 onClick={async () => {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                  window.location.href = "/login";
+                  window.location.href = "/";
                 }}
                 data-testid="button-logout"
               >

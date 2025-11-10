@@ -107,7 +107,10 @@ Prospects, discovery, outreach, meetings, sheets sync
 - **Prometheus**: For collecting and monitoring application metrics via the `/metrics` endpoint
 
 ## Recent Changes (November 2025)
-- **Authentication & Security Architecture**: Dual-layer protection for SPA with client-side route guards (`PrivateRoute`) and API endpoint authentication (`ensureAuthed` middleware). Note: Server-side HTML route guards are not compatible with Vite's SPA fallback handler.
+- **Authentication & Security Architecture**: Triple-layer protection for SPA:
+  1. **Server-Side HTML Guard**: `protectDashboard` middleware redirects unauthenticated GET requests to protected routes (runs before Vite)
+  2. **Client-Side Guards**: `PrivateRoute` component for defense-in-depth and better UX
+  3. **API Authentication**: `ensureAuthed`/`ensureAdmin` middleware on all API endpoints
 - **Complete Authentication System**: Integrated comprehensive auth with password reset, TOTP 2FA, backup codes, email/SMS fallback, and admin 2FA enforcement
 - **Advanced Authentication Features**:
   - **Admin Hard-Gate TOTP Setup**: `ENFORCE_ADMIN_TOTP_SETUP` flag prevents admins from using fallback authentication until TOTP is configured, eliminating 2FA bypass vulnerability
@@ -117,11 +120,17 @@ Prospects, discovery, outreach, meetings, sheets sync
   - **Enhanced 2FA UX**: "Trust this device" checkbox on all 2FA verification pages
 - **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY, server-side device token generation and hashing
 - **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
+- **Server-Side HTML Guard (`protectDashboard` middleware)**:
+  - **Registration**: Runs AFTER session setup, BEFORE routes/Vite in `server/index.ts`
+  - **Protected Routes**: /dashboard, /crm, /records, /jobs, /duplicates, /analytics, /admin, /account
+  - **Case-Insensitive**: Normalizes paths to lowercase (blocks /Dashboard, /DASHBOARD, etc.)
+  - **Secure by Default**: Redirects all unauthenticated GET requests to "/" (no Accept header bypass)
+  - **API Separation**: `/api/*` routes protected by their own middleware
 - **Login-Only Landing Page**:
-  - **Landing Page**: `/` now serves a clean, centered login panel (`client/src/pages/login-landing.tsx`) with auto-redirect for authenticated users to `/dashboard`
-  - **Protected Dashboard**: Main dashboard moved from `/` to `/dashboard` route, fully protected by client-side (`PrivateRoute`) guards and API endpoint authentication
-  - **Conditional Header**: Header component auto-hides on landing page (`/` and `/login`) for unauthenticated users while preserving full navigation (Dashboard, Records, Jobs, Duplicates, Analytics, CRM) for authenticated users
-  - **Routing Architecture**: All protected routes (Records, Jobs, Duplicates, Analytics, CRM, Account, Admin) wrapped in `PrivateRoute` component; public routes (landing, login, forgot, reset, 2FA pages) remain accessible
+  - **Landing Page**: `/` serves login panel with auto-redirect for authenticated users
+  - **Protected Routes**: All application routes protected by server guard + client guard + API auth
+  - **Logout Button**: Added to header, redirects to "/" after logout
+  - **Conditional Header**: Auto-hides on landing/login pages for unauthenticated users
 - **Admin Panel for User Management**:
   - **Admin Bootstrap**: `POST /api/admin/bootstrap` endpoint creates/updates admin user from Replit Secrets (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME) using scrypt hashing
   - **Admin Routes**: Protected by `ensureAdmin` middleware, includes user list, role management (admin/user), activation controls, and password reset trigger

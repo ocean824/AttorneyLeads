@@ -1,0 +1,4 @@
+
+// Extend your router with the admin panel route
+import AdminPanel from "@/pages/admin";
+<Route path="/admin/users" component={AdminPanel} />

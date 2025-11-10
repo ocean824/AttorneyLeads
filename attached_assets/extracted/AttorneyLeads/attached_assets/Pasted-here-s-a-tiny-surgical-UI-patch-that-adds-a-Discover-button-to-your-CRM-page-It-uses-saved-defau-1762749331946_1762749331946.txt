@@ -1,0 +1,150 @@
+here’s a tiny, surgical UI patch that adds a “Discover” button to your CRM page. It uses saved defaults (practice area + location), shows a “Fetching…” toast immediately, then after the job finishes it shows “Saved N new prospects” based on the before/after count.
+
+1) client/src/pages/crm.tsx — add helpers + quick-discover handler
+
+Add right below your other handlers (after handleDiscoverProspects, before handleSheetsSync is fine):
+
+// --- Quick Discover (saved defaults) helpers ---
+const DEFAULTS_KEY = "crmDiscoverDefaults";
+
+type DiscoverDefaults = { searchQuery: string; location: string };
+
+const getDiscoverDefaults = (): DiscoverDefaults => {
+  try {
+    const raw = localStorage.getItem(DEFAULTS_KEY);
+    if (raw) return JSON.parse(raw) as DiscoverDefaults;
+  } catch {}
+  // Safe fallback if nothing saved yet
+  return { searchQuery: "Personal Injury law firms", location: "Florida" };
+};
+
+const handleSaveDefaults = () => {
+  // Save whatever is currently typed into the inputs as the defaults
+  const payload: DiscoverDefaults = { searchQuery, location };
+  localStorage.setItem(DEFAULTS_KEY, JSON.stringify(payload));
+  toast({ title: "Saved", description: "Defaults updated for quick discover." });
+};
+
+const handleQuickDiscover = async () => {
+  const beforeCount = prospects?.length ?? 0;
+  const { searchQuery: q, location: loc } = getDiscoverDefaults();
+
+  // Immediate feedback
+  toast({
+    title: "Fetching…",
+    description: `Discovering "${q}" in ${loc}…`,
+  });
+
+  try {
+    await apiRequest("/api/crm/discover", {
+      method: "POST",
+      body: JSON.stringify({ searchQuery: q, location: loc, platform: "linkedin" }),
+    });
+
+    // Your backend fetches & saves asynchronously; wait a beat and then compute delta
+    setTimeout(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/crm/prospects"] });
+      const fresh = (await queryClient.fetchQuery({
+        queryKey: ["/api/crm/prospects"],
+      })) as CrmProspect[];
+
+      const afterCount = Array.isArray(fresh) ? fresh.length : beforeCount;
+      const delta = Math.max(0, afterCount - beforeCount);
+
+      toast({
+        title: "Completed",
+        description: `Saved ${delta} new prospect${delta === 1 ? "" : "s"}.`,
+      });
+    }, 6000);
+  } catch {
+    toast({
+      title: "Discover Failed",
+      description: "Could not start prospect discovery",
+      variant: "destructive",
+    });
+  }
+};
+
+2) client/src/pages/crm.tsx — add the tiny Discover button in the Prospects header
+
+Replace the Prospects CardHeader block:
+
+<CardHeader>
+  <div className="flex items-center justify-between gap-2">
+    <div>
+      <CardTitle>Prospect Database</CardTitle>
+      <CardDescription>{prospects.length} total prospects</CardDescription>
+    </div>
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={handleQuickDiscover}
+        disabled={discoverProspectsMutation.isPending}
+        data-testid="button-quick-discover"
+      >
+        {discoverProspectsMutation.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Fetching…
+          </>
+        ) : (
+          <>
+            <Search className="h-4 w-4 mr-2" />
+            Discover
+          </>
+        )}
+      </Button>
+    </div>
+  </div>
+</CardHeader>
+
+
+This shows a small Discover button on the right side of the Prospects header that fires your saved defaults.
+
+3) client/src/pages/crm.tsx — add a “Save defaults” helper next to your existing form button
+
+Find the existing “Discover Prospects” button and append a small ghost button after it:
+
+<Button
+  onClick={handleDiscoverProspects}
+  disabled={discoverProspectsMutation.isPending}
+  data-testid="button-discover-prospects"
+>
+  {discoverProspectsMutation.isPending ? (
+    <>
+      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+      Discovering...
+    </>
+  ) : (
+    <>
+      <Search className="h-4 w-4 mr-2" />
+      Discover Prospects
+    </>
+  )}
+</Button>
+
+<Button
+  variant="ghost"
+  size="sm"
+  className="ml-2"
+  onClick={handleSaveDefaults}
+  data-testid="button-save-discover-defaults"
+  title="Save current search query + location as defaults for the tiny Discover button"
+>
+  Save as default
+</Button>
+
+How it behaves
+
+Click Save as default once to store your preferred practice area (search query) + location.
+
+Use the tiny Discover button (top-right of Prospects card) any time; it:
+
+Shows “Fetching…” immediately,
+
+Waits for your backend to finish saving,
+
+Then shows “Saved N new prospects.”
+
+No backend changes required—the button hits your existing POST /api/crm/discover and uses your already-wired PhantomBuster workflow.

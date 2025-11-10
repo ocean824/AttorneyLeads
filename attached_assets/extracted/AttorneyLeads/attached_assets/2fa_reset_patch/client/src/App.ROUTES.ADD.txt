@@ -1,0 +1,8 @@
+
+// Add these routes in your router:
+<Route path="/forgot" component={Forgot} />
+<Route path="/reset" component={Reset} />
+<Route path="/2fa" component={TwoFA} />
+<Route path="/account/security">
+  <PrivateRoute><AccountSecurity /></PrivateRoute>
+</Route>

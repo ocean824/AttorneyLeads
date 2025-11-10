@@ -1,0 +1,77 @@
+I layered all three:
+
+Admin-only hard gate: Admins must enable TOTP before completing login (no fallback allowed) when ENFORCE_ADMIN_TOTP_SETUP=true.
+
+Device recognition: Optional “Trust this device” cookie (httpOnly) + hashed record in DB; bypasses 2FA for X days (only after TOTP is enabled).
+
+Printable backup-codes PDF: Server endpoint that returns a PDF (uses pdfkit if installed, falls back to .txt).
+
+Download the patch
+
+Admin Hard Gate + Trusted Devices + Backup Codes PDF
+
+What’s inside
+shared/schema.ADD_TRUSTED.ts          # user_trusted_devices table
+server/security/device.ts             # device token helpers
+server/export.ts                      # backup-codes PDF (pdfkit dynamic import)
+server/auth-admin-gate-trust.ts       # admin hard-gate flow, trusted-device routes, PDF endpoint
+server/types/session.d.ts             # pending2fa.hardSetup typing
+client/src/pages/devices.tsx          # manage trusted devices (list/revoke)
+client/src/pages/2fa.TRUST_NOTE.txt   # add "Trust this device" checkbox in 2FA UIs
+client/src/pages/account-security.NOTE.txt # link to /devices + PDF download note
+AUTH_ADMIN_GATE_TRUST_PDF_README.md   # step-by-step wiring guide
+
+How to integrate (fast)
+
+Schema
+
+# merge the table into shared/schema.ts, then:
+npm run db:push
+
+
+Server
+
+Add the new module server/auth-admin-gate-trust.ts and import/register registerAuthAdminHardGate(app) in server startup (or inline its logic into your existing login flow).
+
+In your login handler (after verifying password and loading the user), set:
+
+(req as any)._passwordUser = user;
+
+
+then call the helper route (or replicate its logic) to branch:
+
+If { adminMustSetup2fa: true }: drive pending TOTP setup using:
+
+POST /api/auth/totp/pending/start → QR + secret
+
+POST /api/auth/totp/pending/verify → enables TOTP and completes login
+
+Else if { requires2fa: true }: continue with your existing TOTP / Backup / Email/SMS OTP.
+
+After 2FA success, if user checked “trust this device,” call:
+
+POST /api/auth/trust-device?label=My%20Laptop
+
+
+That sets the cookie + saves the hashed token.
+
+Client
+
+On /2fa and /2fa-fallback, add a “Trust this device for N days” checkbox (see note file). After successful verify, if checked, call /api/auth/trust-device.
+
+Add a Trusted Devices page at /devices (included) and link to it from Account Security.
+
+When showing backup codes, add a “Download PDF” button that posts { codes } to:
+
+POST /api/auth/backup-codes/pdf
+
+
+(Installs pdfkit for a real PDF, or returns a .txt if not installed.)
+
+Env
+
+ENFORCE_ADMIN_TOTP_SETUP=true
+TRUSTED_DEVICE_DAYS=30
+DEVICE_COOKIE_NAME=device
+# Optional for PDF:
+# npm i pdfkit

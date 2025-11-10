@@ -1,0 +1,715 @@
+A) Observability Upgrade
+1. New Observability Routes – server/observability.ts
+
+These three endpoints are implementation-ready; you just need to wire registerObservabilityRoutes(app) into your Express server (e.g., in server/index.ts after your other routes).
+
+// server/observability.ts
+import type { Express, Request, Response } from "express";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
+import { arrestRecords, scrapeJobs } from "@shared/schema";
+import { logger } from "./logger";
+
+type HealthStatus = {
+  status: "ok" | "error";
+  checks?: Record<string, unknown>;
+};
+
+export function registerObservabilityRoutes(app: Express) {
+  app.get("/healthz", async (_req: Request, res: Response) => {
+    try {
+      // Lightweight DB connectivity check
+      await db.select({ id: arrestRecords.id }).from(arrestRecords).limit(1);
+      const payload: HealthStatus = { status: "ok" };
+      res.json(payload);
+    } catch (error) {
+      logger.error("healthz_failed", {
+        errorMessage: (error as Error).message,
+      });
+      const payload: HealthStatus = { status: "error" };
+      res.status(500).json(payload);
+    }
+  });
+
+  app.get("/readyz", async (_req: Request, res: Response) => {
+    try {
+      const [recordsRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(arrestRecords);
+
+      const [jobsRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(scrapeJobs);
+
+      const hasOpenAI = !!process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+
+      const payload: HealthStatus = {
+        status: "ok",
+        checks: {
+          db: true,
+          env: {
+            openai: hasOpenAI,
+          },
+          recordCount: recordsRow?.count ?? 0,
+          jobCount: jobsRow?.count ?? 0,
+        },
+      };
+
+      res.json(payload);
+    } catch (error) {
+      logger.error("readyz_failed", {
+        errorMessage: (error as Error).message,
+      });
+      const payload: HealthStatus = {
+        status: "error",
+        checks: {
+          db: false,
+        },
+      };
+      res.status(500).json(payload);
+    }
+  });
+
+  app.get("/metrics", async (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/plain; version=0.0.4");
+
+    try {
+      const [recordsRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(arrestRecords);
+      const [jobsRow] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(scrapeJobs);
+
+      const lines = [
+        "# HELP attorneyleads_up Application up status.",
+        "# TYPE attorneyleads_up gauge",
+        "attorneyleads_up 1",
+        "# HELP attorneyleads_records_total Total number of arrest records.",
+        "# TYPE attorneyleads_records_total gauge",
+        `attorneyleads_records_total ${recordsRow?.count ?? 0}`,
+        "# HELP attorneyleads_scrape_jobs_total Total number of scrape jobs.",
+        "# TYPE attorneyleads_scrape_jobs_total gauge",
+        `attorneyleads_scrape_jobs_total ${jobsRow?.count ?? 0}`,
+      ];
+
+      res.send(lines.join("\n") + "\n");
+    } catch (error) {
+      logger.error("metrics_failed", {
+        errorMessage: (error as Error).message,
+      });
+
+      const lines = [
+        "# HELP attorneyleads_up Application up status.",
+        "# TYPE attorneyleads_up gauge",
+        "attorneyleads_up 0",
+      ];
+
+      res.status(500).send(lines.join("\n") + "\n");
+    }
+  });
+}
+
+
+How to wire it (manual step):
+
+In server/index.ts, after you create app and before you start the server, add something like:
+
+import { registerObservabilityRoutes } from "./observability";
+import { loggerMiddleware } from "./middleware/loggerMiddleware";
+import { securityHeaders } from "./middleware/securityHeaders";
+import { rateLimiter } from "./middleware/rateLimiter";
+
+const app = express();
+
+app.use(express.json());
+app.use(loggerMiddleware);
+app.use(securityHeaders);
+app.use(rateLimiter);
+
+registerRoutes(app);
+registerObservabilityRoutes(app);
+
+
+⚠️ Note: The existing TS code in the ZIP has some placeholder ... segments, so you may need to do a light refactor of server/index.ts to integrate these middlewares and routes cleanly.
+
+2. Structured Logging & Middlewares (Materialized)
+
+These were conceptually described earlier in the Security pass; now they exist as real files in the repo.
+
+server/logger.ts
+// server/logger.ts
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+interface LogContext {
+  requestId?: string;
+  route?: string;
+  [key: string]: unknown;
+}
+
+const SENSITIVE_KEYS = [
+  "password",
+  "secret",
+  "token",
+  "apikey",
+  "apiKey",
+  "authorization",
+];
+
+function redact(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > 8 && /[A-Za-z0-9]{16,}/.test(value)) {
+      return "[redacted]";
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redact);
+  }
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const clone: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEYS.some((s) => k.toLowerCase().includes(s.toLowerCase()))) {
+        clone[k] = "[redacted]";
+      } else {
+        clone[k] = redact(v);
+      }
+    }
+    return clone;
+  }
+
+  return value;
+}
+
+function log(level: LogLevel, message: string, ctx?: LogContext) {
+  const payload = {
+    level,
+    message,
+    ts: new Date().toISOString(),
+    ...(ctx ? redact(ctx) : {}),
+  };
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(payload));
+}
+
+export const logger = {
+  debug: (message: string, ctx?: LogContext) => log("debug", message, ctx),
+  info: (message: string, ctx?: LogContext) => log("info", message, ctx),
+  warn: (message: string, ctx?: LogContext) => log("warn", message, ctx),
+  error: (message: string, ctx?: LogContext) => log("error", message, ctx),
+};
+
+server/middleware/loggerMiddleware.ts
+// server/middleware/loggerMiddleware.ts
+import type { Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
+import { logger } from "../logger";
+
+declare module "express-serve-static-core" {
+  interface Request {
+    requestId?: string;
+  }
+}
+
+export function loggerMiddleware(req: Request, res: Response, next: NextFunction) {
+  const requestId = (req.headers["x-request-id"] as string) || randomUUID();
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    logger.info("http_request", {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: duration,
+    });
+  });
+
+  next();
+}
+
+server/middleware/securityHeaders.ts
+// server/middleware/securityHeaders.ts
+import type { Request, Response, NextFunction } from "express";
+
+export function securityHeaders(_req: Request, res: Response, next: NextFunction) {
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self' https://api.openai.com https://*.replit.com",
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
+  next();
+}
+
+config/rateLimits.ts + server/middleware/rateLimiter.ts
+// config/rateLimits.ts
+export type RateLimitConfig = {
+  windowMs: number;
+  max: number;
+};
+
+export type RouteRateLimitMap = {
+  [routeKey: string]: RateLimitConfig;
+};
+
+export const routeRateLimits: RouteRateLimitMap = {
+  "GET /api/stats": { windowMs: 15 * 60 * 1000, max: 100 },
+  "GET /api/analytics": { windowMs: 15 * 60 * 1000, max: 60 },
+  "GET /api/records": { windowMs: 15 * 60 * 1000, max: 120 },
+
+  "POST /api/scrape/start": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/ai/enhance": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/discover": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/outreach/send": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/sheets/sync-prospects": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/sheets/sync-records": { windowMs: 15 * 60 * 1000, max: 10 },
+
+  DEFAULT: { windowMs: 15 * 60 * 1000, max: 100 },
+};
+
+// server/middleware/rateLimiter.ts
+import type { Request, Response, NextFunction } from "express";
+import { routeRateLimits, type RateLimitConfig } from "../../config/rateLimits";
+
+type BucketKey = string;
+
+interface BucketState {
+  count: number;
+  windowStart: number;
+}
+
+const buckets = new Map<BucketKey, BucketState>();
+
+function makeRouteKey(method: string, path: string): string {
+  return `${method.toUpperCase()} ${path}`;
+}
+
+function getConfig(method: string, path: string): RateLimitConfig {
+  const key = makeRouteKey(method, path);
+  if (routeRateLimits[key]) return routeRateLimits[key];
+  return routeRateLimits.DEFAULT;
+}
+
+export function rateLimiter(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now();
+  const ip = (req.ip || (req.headers["x-forwarded-for"] as string) || "unknown")
+    .toString()
+    .split(",")[0]
+    .trim();
+
+  const config = getConfig(req.method, req.path);
+  const bucketKey: BucketKey = `${ip}:${req.method}:${req.path}`;
+  const existing = buckets.get(bucketKey);
+
+  if (!existing) {
+    buckets.set(bucketKey, { count: 1, windowStart: now });
+    return next();
+  }
+
+  if (now - existing.windowStart > config.windowMs) {
+    existing.count = 1;
+    existing.windowStart = now;
+    buckets.set(bucketKey, existing);
+    return next();
+  }
+
+  if (existing.count >= config.max) {
+    return res.status(429).json({
+      code: "RATE_LIMITED",
+      message: "Too many requests, please slow down.",
+    });
+  }
+
+  existing.count += 1;
+  buckets.set(bucketKey, existing);
+  return next();
+}
+
+3. Observability in Docs & OpenAPI
+docs/OPERATIONS.md (excerpt)
+
+Includes sections for env vars, /healthz, /readyz, /metrics, plus a First Run and Smoke Test checklist:
+
+## Observability Endpoints
+
+- `GET /healthz`
+  - Checks basic DB connectivity by running a lightweight query against `arrest_records`.
+
+- `GET /readyz`
+  - Deeper readiness: DB + counts + env check for OpenAI.
+
+- `GET /metrics`
+  - Prometheus metrics: `attorneyleads_up`, `attorneyleads_records_total`, `attorneyleads_scrape_jobs_total`.
+
+server/openapi.yml (skeleton)
+
+Includes observability paths plus key API routes:
+
+openapi: 3.1.0
+info:
+  title: AttorneyLeads API
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /healthz:
+    get:
+      summary: Liveness / DB connectivity probe
+      responses:
+        '200':
+          description: Application is healthy
+        '500':
+          description: Application is not healthy
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Application is ready to serve traffic
+        '500':
+          description: Application is not ready
+  /metrics:
+    get:
+      summary: Prometheus metrics endpoint
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/stats:
+    get:
+      summary: Get high-level system stats
+      responses:
+        '200':
+          description: Stats summary
+  ...
+
+
+(Full file is in the ZIP at server/openapi.yml.)
+
+B) Replit Packaging Upgrade
+1. New .replit
+
+This replaces the truncated one and is designed for Node 20 + Postgres + Python 3.11 with a one-click Run.
+
+# .replit
+run = "npm run dev"
+
+[nix]
+channel = "stable-24_05"
+packages = [
+  "nodejs-20_x",
+  "postgresql_16",
+  "python311"
+]
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+visibility = "public"
+name = "web"
+
+[[workflows]]
+name = "Start application"
+author = "agent"
+
+[[workflows.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[agent]
+integrations = ["javascript_openai_ai_integrations:1.0.0"]
+
+2. New replit.nix
+# replit.nix
+{ pkgs }: {
+  deps = [
+    pkgs.nodejs_20
+    pkgs.postgresql_16
+    pkgs.python311
+  ];
+}
+
+
+This ensures the environment has:
+
+Node.js 20
+
+Postgres 16 client/server
+
+Python 3.11 (for the scraper)
+
+C) First-Run Initializer & Scripts
+
+These live under scripts/ and are wired (best-effort) into package.json via added npm scripts — if your existing package.json parses as valid JSON. (The original file in your ZIP had ... placeholders; if JSON parsing failed, the script left it untouched, and you can manually add the commands.)
+
+1. Env Doctor – scripts/envDoctor.ts
+// scripts/envDoctor.ts
+import { z } from "zod";
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  AI_INTEGRATIONS_OPENAI_API_KEY: z.string().min(1),
+  AI_INTEGRATIONS_OPENAI_BASE_URL: z.string().url(),
+});
+
+const result = envSchema.safeParse(process.env);
+
+if (!result.success) {
+  console.error("Missing or invalid environment variables:", result.error.format());
+  process.exit(1);
+}
+
+console.log("Environment variables look good.");
+
+2. Seed Script – scripts/seed.ts
+
+Seeds a single demo arrest record if table is empty.
+
+// scripts/seed.ts
+import { db } from "../server/db";
+import { arrestRecords } from "@shared/schema";
+
+async function main() {
+  const existing = await db.select().from(arrestRecords).limit(1);
+  if (existing.length > 0) {
+    console.log("Seed skipped: records already exist.");
+    return;
+  }
+
+  await db.insert(arrestRecords).values({
+    fullName: "DOE, JOHN",
+    firstName: "JOHN",
+    lastName: "DOE",
+    bookingDate: new Date().toISOString().slice(0, 10),
+    charges: "SAMPLE - POSS SESSION",
+    bondAmount: "2500",
+    inmateId: "SAMPLE-001",
+    county: "Sample County",
+    sourceSystem: "seed",
+  } as any);
+
+  console.log("Seed completed: inserted sample arrest record.");
+}
+
+main().catch((err) => {
+  console.error("Seed failed:", err);
+  process.exit(1);
+});
+
+3. Smoke Test – scripts/smoke-test.ts
+
+Assumes the server is already running on PORT (default 5000). It checks DB and the new observability endpoints.
+
+// scripts/smoke-test.ts
+import http from "http";
+import { db } from "../server/db";
+import { arrestRecords } from "@shared/schema";
+
+async function checkDb() {
+  const records = await db.select().from(arrestRecords).limit(1);
+  console.log("DB check ok, sample rows:", records.length);
+}
+
+function checkEndpoint(path: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(
+      {
+        host: "127.0.0.1",
+        port: parseInt(process.env.PORT || "5000", 10),
+        path,
+      },
+      (res) => {
+        console.log(`Smoke: ${path} ->`, res.statusCode);
+        if (res.statusCode && res.statusCode < 500) {
+          resolve();
+        } else {
+          reject(new Error(`Endpoint ${path} returned ${res.statusCode}`));
+        }
+      }
+    );
+
+    req.on("error", reject);
+  });
+}
+
+async function main() {
+  await checkDb();
+  await checkEndpoint("/healthz");
+  await checkEndpoint("/readyz");
+  console.log("Smoke test passed.");
+}
+
+main().catch((err) => {
+  console.error("Smoke test failed:", err);
+  process.exit(1);
+});
+
+4. First-Run Initializer – scripts/first-run-init.ts
+// scripts/first-run-init.ts
+import { execSync } from "child_process";
+
+function run(cmd: string) {
+  console.log(`> ${cmd}`);
+  execSync(cmd, { stdio: "inherit" });
+}
+
+async function main() {
+  try {
+    run("npm run env:check");
+    run("npm run db:push");
+    run("npm run seed");
+    console.log("\nFirst-run initialization complete.");
+    console.log("You can now run `npm run dev` and open the Replit webview.");
+  } catch (err) {
+    console.error("First-run initializer failed:", err);
+    process.exit(1);
+  }
+}
+
+main();
+
+5. NPM Scripts (best-effort update)
+
+If package.json was parsable JSON, I added:
+
+"scripts": {
+  "env:check": "tsx scripts/envDoctor.ts",
+  "seed": "tsx scripts/seed.ts",
+  "smoke": "tsx scripts/smoke-test.ts",
+  "first-run:init": "tsx scripts/first-run-init.ts"
+}
+
+
+If package.json was not valid JSON because of the ... placeholders, it was left unchanged. In that case, just add those scripts manually in Replit.
+
+D) Supporting Docs
+docs/ARCHITECTURE.md (excerpt)
+# Architecture
+
+## Overview
+
+AttorneyLeads is a single Replit workspace application composed of:
+
+- **client/** – React + Vite SPA for dashboard, records, duplicates, CRM, analytics.
+- **server/** – Express API server that:
+  - Handles REST endpoints under `/api/**`.
+  - Hosts observability endpoints under `/healthz`, `/readyz`, `/metrics`.
+  - Serves the built SPA in production via `vite.ts` helpers.
+- **shared/** – Drizzle schema & zod validation shared between server and (optionally) client.
+
+## Observability
+
+- `/healthz` – basic DB connectivity check.
+- `/readyz` – readiness check including DB, basic env validation, and counts of core tables.
+- `/metrics` – Prometheus-compatible text endpoint with basic gauges/counters.
+
+docs/DEPLOY_REPLIT.md (excerpt)
+## First-Run Initializer
+
+- Script: `npm run first-run:init`
+  - Validates env (`env:check`)
+  - Applies DB schema (`db:push`)
+  - Seeds sample data (`seed`)
+  - Prints URLs and hints to the console.
+
+E) Quick Reality Check / Assumptions
+
+Assumed:
+
+The existing codebase is partially stubbed (those literal ... sections). I did not rewrite the core business logic; instead I layered observability and packaging on top in a way that’s easy to wire in.
+
+Drizzle schema in shared/schema.ts is the source of truth for arrest_records and scrape_jobs.
+
+What’s ready now:
+
+✅ Observability endpoints module ready to be integrated.
+
+✅ Structured logging & requestId middleware.
+
+✅ In-memory rate limiting configuration and middleware.
+
+✅ Replit packaging: .replit + replit.nix.
+
+✅ First-run initializer + env doctor + seed + smoke test scripts.
+
+✅ Updated docs for architecture, operations, security, and PRDs (skeleton).
+
+How to Validate These Layers in 5 Minutes
+
+Upload ZIP to Replit
+
+Use AttorneyLeads_observability_replit.zip.
+
+Open project; ensure Replit picks up .replit / replit.nix.
+
+Set Secrets
+
+In Replit Secrets panel set at least:
+
+DATABASE_URL
+
+AI_INTEGRATIONS_OPENAI_API_KEY
+
+AI_INTEGRATIONS_OPENAI_BASE_URL
+
+Initialize
+
+In the Shell:
+
+npm install
+npm run first-run:init
+npm run dev
+
+
+Check Observability
+
+In the Replit webview / browser:
+
+/<- root SPA (may need some wiring still because original code is partial)
+
+/healthz → should return { "status": "ok" } if DB reachable.
+
+/readyz → should return { "status": "ok", "checks": { ... } }.
+
+/metrics → should return Prometheus-style text with attorneyleads_up and counts.
+
+Smoke Test Script
+
+With the server running in one tab, run in another shell tab:
+
+npm run smoke
+
+
+You should see:
+
+DB check OK
+
+/healthz and /readyz status codes < 500
+
+“Smoke test passed.”

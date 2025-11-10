@@ -1,0 +1,621 @@
+the Security Hardening pass. I’ll treat this as running the “Security Hardening” optional follow-up prompt against the current AttorneyLeads repo.
+
+I’ll give you:
+
+A security review + risk list
+
+A full docs/SECURITY.md you can drop in
+
+Diff-style notes + code snippets for new/updated files (rate limiting, logging, headers)
+
+1) Security Review – Key Risks
+
+OWASP Top 10 + rate abuse – how they apply here (assessed from current design):
+
+Broken Access Control
+
+No clear auth/role model in the current API.
+
+Risk: anyone who discovers the URL could hit /api/**, trigger scrapes, read records, or spam external integrations.
+
+Cryptographic Failures
+
+Secrets are in env only (good), but there’s no documented policy.
+
+Risk: accidentally logging secrets or committing .env.
+
+Injection
+
+Drizzle ORM reduces raw SQL risk, but:
+
+Risk: unsanitized inputs used in dynamic SQL or external calls (e.g., county names, search strings, URLs).
+
+Insecure Design
+
+No documented threat model; no rate limits.
+
+Risk: easy DoS (flood /api/scrape/start, AI endpoints).
+
+Security Misconfiguration
+
+No explicit security headers (CSP, X-Frame-Options, HSTS, etc.).
+
+Risk: clickjacking, XSS framing, downgrade attacks (if deployed under non-HTTPS front).
+
+Vulnerable/Outdated Components
+
+Normal Node risk; there’s no process defined for dep updates.
+
+Risk: known vulnerabilities in libs.
+
+Identification & Authentication Failures
+
+No login/auth currently modeled.
+
+Risk: multi-tenant / public usage would be unsafe if exposed directly.
+
+Software & Data Integrity Failures
+
+No integrity checks on scraped HTML or 3rd-party responses.
+
+Risk: if external source compromised, app ingests bad/malicious data.
+
+Security Logging & Monitoring Failures
+
+Logging is basic console.log style with no structure or PII redaction.
+
+Risk: secrets or personal data (names, phone, etc.) end up in logs.
+
+Server-Side Request Forgery (SSRF)
+
+Scraper + PhantomBuster + Sheets/Calendly integrations issue HTTP calls.
+
+Risk: if user-controlled URLs slip into those calls.
+
+Rate-limit / abuse concerns
+
+[/api/scrape/start] can be spammed to overload scraper + external sites.
+
+AI endpoints (/api/ai/**) can be spammed to burn OpenAI quota.
+
+CRM sync endpoints can be hammered to spam 3rd-party APIs.
+
+We’ll mitigate now by:
+
+Adding route-level rate limits (IP-based, in-memory, dependency-light).
+
+Adding a security policy doc with roles & authorizations.
+
+Adding a logging/PII redaction approach.
+
+Adding basic security headers.
+
+2) New File – docs/SECURITY.md
+
+Drop this in as docs/SECURITY.md:
+
+# Security Overview – AttorneyLeads
+
+This document describes the current security posture, assumptions, and controls
+for the AttorneyLeads application.
+
+> **Assumed Deployment Model:** Single-tenant deployment in a private Replit
+> workspace, not directly exposed as a multi-tenant SaaS. If you decide to
+> expose this publicly, you MUST harden and extend the controls described here.
+
+---
+
+## 1. Threat Model & Assumptions
+
+### Assets
+
+- Arrest records and enriched lead data (personally identifiable information).
+- API keys and credentials:
+  - `DATABASE_URL` (Postgres)
+  - OpenAI / Replit AI keys
+  - PhantomBuster, Calendly, Google Sheets tokens
+- Application source code and configuration.
+
+### Trust Boundaries
+
+- **Trusted:** Replit workspace, environment variables (Secrets), Neon Postgres.
+- **Untrusted:** HTTP clients (browsers, scripts), external sites (county jails),
+  3rd-party APIs (PhantomBuster, Calendly, Google, OpenAI).
+
+### High-Level Risks
+
+- Unauthorized access to `/api/**` if the app is exposed publicly.
+- Abuse of scrape and AI endpoints (rate abuse, cost escalation).
+- Leakage of secrets or PII via logs.
+- Injection or SSRF-like issues from unvalidated external URLs.
+
+---
+
+## 2. AuthN & AuthZ Model
+
+> **Assumed Current State:** There is no full user login yet; access is
+> effectively gated by Replit workspace/private URL. This model is **not**
+> sufficient for a public SaaS deployment.
+
+### Planned Roles
+
+- **Owner**
+  - Full control over settings, counties, integrations.
+  - Can run any scrape, manage CRM and analytics.
+- **Attorney**
+  - Can view records, leads, campaigns, and meetings.
+  - Can start scrapes and export data.
+- **Intake Specialist**
+  - Can view and update leads, run scrapes, manage duplicates.
+- **Read-Only Analyst**
+  - Can view analytics & exports, but cannot mutate data.
+
+### Authorization Matrix (Planned)
+
+| Action                                      | Owner | Attorney | Intake | Analyst |
+|---------------------------------------------|:-----:|:--------:|:------:|:-------:|
+| Start scrape (`POST /api/scrape/start`)     |  ✓    |    ✓     |   ✓    |    ✗    |
+| View records (`GET /api/records`)           |  ✓    |    ✓     |   ✓    |    ✓    |
+| Delete record (`DELETE /api/records/{id}`)  |  ✓    |    ✓     |   ✗    |    ✗    |
+| Run duplicate scan                          |  ✓    |    ✓     |   ✓    |    ✗    |
+| Merge / dismiss duplicates                  |  ✓    |    ✓     |   ✓    |    ✗    |
+| Manage CRM prospects / campaigns            |  ✓    |    ✓     |   ✓    |    ✗    |
+| Schedule meetings                           |  ✓    |    ✓     |   ✓    |    ✗    |
+| View analytics                              |  ✓    |    ✓     |   ✓    |    ✓    |
+| Manage integrations (keys, webhooks, etc.)  |  ✓    |    ✗     |   ✗    |    ✗    |
+
+> Implementing this matrix requires an auth layer (JWT/session) and a
+> `permissions.ts` module that maps roles → actions. This doc is the blueprint.
+
+---
+
+## 3. Input Validation & Output Whitelisting
+
+- **Input validation**:
+  - All external request payloads SHOULD be validated with `zod` schemas
+    in the controller layer before reaching services.
+  - Query parameters (e.g., `dateFrom`, `county`, `search`) SHOULD be parsed
+    and validated to prevent abusive patterns and reduce injection risk.
+
+- **Output whitelisting**:
+  - API responses SHOULD return objects that are explicitly shaped
+    (no raw DB rows with extra internal fields).
+  - PII is only included when necessary (name, booking info), not secrets.
+
+---
+
+## 4. Rate Limiting & Abuse Prevention
+
+We apply **route-level rate limits** (IP-based) via an in-memory limiter:
+
+- Defaults (can be tuned in `config/rateLimits.ts`):
+  - Public-ish endpoints (stats, analytics, records list): `100 req / 15 min / IP`
+  - Heavy endpoints (scrape start, AI enrichment, external sync) :
+    `10 req / 15 min / IP`
+- Limits are enforced in `server/middleware/rateLimiter.ts`, which reads
+  route-specific configs from `config/rateLimits.ts`.
+
+> For production multi-node setups, this MUST be replaced with a shared-store
+> limiter (Redis, Postgres-based counters, or a dedicated gateway).
+
+---
+
+## 5. Logging, PII & Secrets
+
+- We use a lightweight structured logger with:
+  - `level`, `timestamp`, `requestId`, `route`, `message`.
+- **Redaction**:
+  - All log entries MUST pass through a redaction step that strips or masks:
+    - Environment variables,
+    - API keys (`key`, `secret`, `token`),
+    - Obvious PII fields (`email`, `phone`).
+- Stack traces are logged **without** including full request bodies.
+
+Operators SHOULD:
+
+- Avoid logging large payloads of arrest records.
+- Use sampling for noisy debug logs in high-throughput contexts.
+
+---
+
+## 6. Security Headers
+
+We apply the following headers via a dedicated middleware:
+
+- `X-Frame-Options: DENY` – prevents clickjacking.
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp` (can be relaxed if needed).
+- Content-Security-Policy (CSP) **baseline** that:
+  - Restricts script, style, and connect-src domains (to the app origin and known APIs).
+
+> CSP MUST be tuned for the actual frontend asset pipeline and integrations.
+
+---
+
+## 7. Secrets Management & Secret Scanning
+
+- All secrets MUST be stored only in Replit’s Secrets panel or equivalent.
+- `.env` files MUST NOT be committed; `.env` is in `.gitignore`.
+- When debugging locally, developers must:
+  - Keep `.env.local` untracked.
+  - Avoid printing env values to logs.
+
+### Secret Scanner (Pre-commit / CI)
+
+> Assumed: There is currently no CI pipeline.
+
+- Recommended:
+  - Add a pre-commit hook using tools like `gitleaks` or `trufflehog` to scan
+    staged changes for high-entropy strings and known secret patterns.
+  - In a future CI setup, run the same scanner on each push and block merges
+    when potential secrets are detected.
+
+---
+
+## 8. 3rd-Party Integrations (OpenAI, PhantomBuster, Calendly, Google)
+
+- All outbound requests MUST:
+  - Use HTTPS.
+  - Avoid using user-controlled URLs directly (no open redirect/SSRF).
+- PhantomBuster:
+  - Only configured with known “agent IDs”, not user-provided.
+- Calendly:
+  - Tokens stored as secrets; no logging of raw webhook payloads containing
+    sensitive booking info.
+- Google Sheets:
+  - Sheet IDs are configured, not user-supplied URLs where possible.
+
+---
+
+## 9. Future Hardening Tasks
+
+- Implement full authentication (JWT or session) and enforce the role matrix.
+- Add `/healthz`, `/readyz`, and `/metrics` for better observability and anomaly detection.
+- Add automated dependency scanning (npm audit / Snyk / Dependabot).
+- Replace in-memory rate limiting with a shared store for scalable deployments.
+
+3) Diff-Style Changes & Code Snippets
+
+Below are code-level changes you can apply. These are designed to be dependency-light and TypeScript-friendly.
+
+3.1 New: config/rateLimits.ts
+
+Create config/rateLimits.ts:
+
+// config/rateLimits.ts
+export type RateLimitConfig = {
+  windowMs: number; // time window in ms
+  max: number;      // max allowed requests within window
+};
+
+export type RouteRateLimitMap = {
+  [routeKey: string]: RateLimitConfig;
+};
+
+/**
+ * Route-level rate limits.
+ *
+ * Key format:
+ *   METHOD PATH
+ * where PATH can be an Express-style pattern or a generic bucket name.
+ */
+export const routeRateLimits: RouteRateLimitMap = {
+  // Light / readonly endpoints
+  "GET /api/stats": { windowMs: 15 * 60 * 1000, max: 100 },
+  "GET /api/analytics": { windowMs: 15 * 60 * 1000, max: 60 },
+  "GET /api/records": { windowMs: 15 * 60 * 1000, max: 120 },
+
+  // Heavy operations – scrapes, AI, external sync
+  "POST /api/scrape/start": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/ai/enhance": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/discover": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/outreach/send": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/sheets/sync-prospects": { windowMs: 15 * 60 * 1000, max: 10 },
+  "POST /api/crm/sheets/sync-records": { windowMs: 15 * 60 * 1000, max: 10 },
+
+  // Default bucket (applied when no more specific key is found)
+  "DEFAULT": { windowMs: 15 * 60 * 1000, max: 100 },
+};
+
+3.2 New: server/middleware/rateLimiter.ts
+
+Create server/middleware/rateLimiter.ts:
+
+// server/middleware/rateLimiter.ts
+import type { Request, Response, NextFunction } from "express";
+import { routeRateLimits, RateLimitConfig } from "../../config/rateLimits";
+
+type BucketKey = string;
+
+interface BucketState {
+  count: number;
+  windowStart: number;
+}
+
+const buckets = new Map<BucketKey, BucketState>();
+
+function getRouteKey(method: string, path: string): string {
+  const m = method.toUpperCase();
+  // In a more advanced version, you might normalise dynamic params.
+  return `${m} ${path}`;
+}
+
+function matchConfig(method: string, path: string): RateLimitConfig {
+  const directKey = getRouteKey(method, path);
+  if (routeRateLimits[directKey]) return routeRateLimits[directKey];
+
+  // Fall back to DEFAULT
+  return routeRateLimits.DEFAULT;
+}
+
+export function rateLimiter(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now();
+  const ip = (req.ip || req.headers["x-forwarded-for"] || "unknown") as string;
+
+  // Use the originalUrl up to query string
+  const urlPath = req.path;
+  const config = matchConfig(req.method, urlPath);
+
+  const bucketKey: BucketKey = `${ip}:${req.method}:${urlPath}`;
+  const existing = buckets.get(bucketKey);
+
+  if (!existing) {
+    buckets.set(bucketKey, { count: 1, windowStart: now });
+    return next();
+  }
+
+  if (now - existing.windowStart > config.windowMs) {
+    // Reset window
+    existing.count = 1;
+    existing.windowStart = now;
+    buckets.set(bucketKey, existing);
+    return next();
+  }
+
+  if (existing.count >= config.max) {
+    return res.status(429).json({
+      code: "RATE_LIMITED",
+      message: "Too many requests, please slow down.",
+      retryAfterSeconds: Math.ceil(
+        (existing.windowStart + config.windowMs - now) / 1000
+      ),
+    });
+  }
+
+  existing.count += 1;
+  buckets.set(bucketKey, existing);
+  return next();
+}
+
+
+Note: This is per-node, in-memory rate limiting (good enough for Replit single workspace). For multi-node, you’d replace buckets with Redis or similar.
+
+3.3 New: server/middleware/securityHeaders.ts
+
+Create server/middleware/securityHeaders.ts:
+
+// server/middleware/securityHeaders.ts
+import type { Request, Response, NextFunction } from "express";
+
+export function securityHeaders(req: Request, res: Response, next: NextFunction) {
+  // Clickjacking
+  res.setHeader("X-Frame-Options", "DENY");
+  // MIME sniffing
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  // Referrer policy
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // COOP/COEP (tune if needed for external content)
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  // Basic CSP – adjust if you use 3rd-party scripts/fonts
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self' https://api.openai.com https://*.replit.com",
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
+  next();
+}
+
+
+You may need to relax CSP if you load fonts/CDN scripts; this is a safe starting baseline.
+
+3.4 New: server/logger.ts
+
+Create server/logger.ts – a lightweight structured logger with redaction:
+
+// server/logger.ts
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+interface LogContext {
+  requestId?: string;
+  route?: string;
+  [key: string]: unknown;
+}
+
+const SENSITIVE_KEYS = [
+  "password",
+  "secret",
+  "token",
+  "apiKey",
+  "apikey",
+  "authorization",
+  "Authorization",
+];
+
+function redact(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > 8 && /[A-Za-z0-9]{16,}/.test(value)) {
+      return "[redacted]";
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redact);
+  }
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const clone: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (SENSITIVE_KEYS.some((s) => k.toLowerCase().includes(s.toLowerCase()))) {
+        clone[k] = "[redacted]";
+      } else {
+        clone[k] = redact(v);
+      }
+    }
+    return clone;
+  }
+
+  return value;
+}
+
+function log(level: LogLevel, message: string, ctx?: LogContext) {
+  const payload = {
+    level,
+    message,
+    ts: new Date().toISOString(),
+    ...(ctx ? redact(ctx) : {}),
+  };
+
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(payload));
+}
+
+export const logger = {
+  debug: (message: string, ctx?: LogContext) => log("debug", message, ctx),
+  info: (message: string, ctx?: LogContext) => log("info", message, ctx),
+  warn: (message: string, ctx?: LogContext) => log("warn", message, ctx),
+  error: (message: string, ctx?: LogContext) => log("error", message, ctx),
+};
+
+
+And a simple Express middleware to attach a requestId and log basic requests:
+
+// server/middleware/loggerMiddleware.ts
+import type { Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
+import { logger } from "../logger";
+
+export function loggerMiddleware(req: Request, res: Response, next: NextFunction) {
+  const requestId = (req.headers["x-request-id"] as string) || randomUUID();
+  (req as any).requestId = requestId;
+
+  const start = Date.now();
+  res.setHeader("X-Request-Id", requestId);
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    logger.info("http_request", {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: duration,
+    });
+  });
+
+  next();
+}
+
+3.5 Update: server/index.ts – wire middlewares
+
+Diff-style note: You’ll add imports and app.use(...) calls. Keep your existing code; just splice in the following.
+
+At the top of server/index.ts (or wherever you configure Express):
+
+// server/index.ts (add imports)
+import express from "express";
+// ...existing imports...
+import { loggerMiddleware } from "./middleware/loggerMiddleware";
+import { securityHeaders } from "./middleware/securityHeaders";
+import { rateLimiter } from "./middleware/rateLimiter";
+import { logger } from "./logger";
+
+
+When configuring the app:
+
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// NEW: logging + security
+app.use(loggerMiddleware);
+app.use(securityHeaders);
+app.use(rateLimiter);
+
+// ...existing routes...
+
+
+Replace your generic error handler with one that does not log entire bodies and uses the logger:
+
+// server/index.ts – near bottom, after routes
+app.use(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = err.statusCode || err.status || 500;
+    const requestId = (req as any).requestId;
+
+    logger.error("unhandled_error", {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: status,
+      // do NOT log full body; just a hint
+      errorName: err.name,
+      errorMessage: err.message,
+    });
+
+    res.status(status).json({
+      code: err.code || "INTERNAL_ERROR",
+      message: status === 500 ? "Internal server error" : err.message,
+      details: undefined,
+      requestId,
+    });
+  }
+);
+
+How to Apply This Hardening
+
+Create new files exactly as shown:
+
+docs/SECURITY.md
+
+config/rateLimits.ts
+
+server/middleware/rateLimiter.ts
+
+server/middleware/securityHeaders.ts
+
+server/logger.ts
+
+server/middleware/loggerMiddleware.ts
+
+Update server/index.ts:
+
+Add imports for the new middlewares and logger.
+
+Add app.use(loggerMiddleware), app.use(securityHeaders), app.use(rateLimiter) after express.json.
+
+Replace the existing error handler with the new structured handler.
+
+Run & Verify
+
+npm install           # no new deps added
+npm run dev
+
+
+Hit a few endpoints and check console logs are JSON with requestId.
+
+Send a burst of requests to /api/scrape/start from the same IP and confirm you get 429 with { code: "RATE_LIMITED", ... }.
+
+View docs/SECURITY.md in Replit’s editor as the canonical security spec.
