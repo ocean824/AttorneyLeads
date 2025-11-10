@@ -63,6 +63,12 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - `/api/auth/trusted-devices/:id` - Revoke trusted device (DELETE)
 - `/api/account/phone` - Update phone number
 
+**Admin Panel:**
+- `/api/admin/bootstrap` - Create/update admin user from Replit Secrets
+- `/api/admin/users` - List all users (admin-only)
+- `/api/admin/users/:id` - Update user role/active status (admin-only)
+- `/api/admin/users/:id/reset` - Trigger password reset (admin-only)
+
 **Core Operations:**
 Stats, scrape management, record retrieval, export, deduplication, analytics
 
@@ -82,6 +88,11 @@ Prospects, discovery, outreach, meetings, sheets sync
 - `ENFORCE_ADMIN_TOTP_SETUP` - Set to "true" to require admin users complete TOTP setup before accessing fallback auth (prevents bypass)
 - `TRUSTED_DEVICE_DAYS` - Number of days a trusted device remains valid (default: 30)
 - `DEVICE_COOKIE_NAME` - Name of the device cookie (default: "device_token")
+
+**Admin Bootstrap (Optional):**
+- `ADMIN_EMAIL` - Admin user email for bootstrap endpoint
+- `ADMIN_PASSWORD` - Admin user password for bootstrap endpoint
+- `ADMIN_NAME` - Admin user display name for bootstrap endpoint
 
 **Optional:**
 - `SMTP_*` - Email configuration for real password reset/OTP emails (falls back to console logging)
@@ -105,9 +116,15 @@ Prospects, discovery, outreach, meetings, sheets sync
   - **Enhanced 2FA UX**: "Trust this device" checkbox on all 2FA verification pages
 - **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY, server-side device token generation and hashing
 - **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
-- **Login-Only Landing Page** (Latest):
+- **Login-Only Landing Page**:
   - **Landing Page**: `/` now serves a clean, centered login panel (`client/src/pages/login-landing.tsx`) with auto-redirect for authenticated users to `/dashboard`
   - **Protected Dashboard**: Main dashboard moved from `/` to `/dashboard` route, fully protected by both client-side (`PrivateRoute`) and server-side (`protectDashboard` middleware) guards
   - **Conditional Header**: Header component auto-hides on landing page (`/` and `/login`) for unauthenticated users while preserving full navigation (Dashboard, Records, Jobs, Duplicates, Analytics, CRM) for authenticated users
   - **Routing Architecture**: All protected routes (Records, Jobs, Duplicates, Analytics, CRM, Account, Admin) wrapped in `PrivateRoute` component; public routes (landing, login, forgot, reset, 2FA pages) remain accessible
   - **Server-Side Protection**: `server/middleware/protectDashboard.ts` middleware registered early in chain (after session setup) to redirect unauthenticated GET requests to `/dashboard` → `/login`
+- **Admin Panel for User Management** (Latest):
+  - **Admin Bootstrap**: `POST /api/admin/bootstrap` endpoint creates/updates admin user from Replit Secrets (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME) using scrypt hashing
+  - **Admin Routes**: Protected by `ensureAdmin` middleware, includes user list, role management (admin/user), activation controls, and password reset trigger
+  - **Admin UI**: Table-based interface at `/admin/users` with role dropdown, active checkbox, and reset password button per user
+  - **Login Flow Enhancement**: Admin users automatically redirect to `/admin/users` after login instead of `/dashboard`
+  - **Security**: Server-side validation on PATCH endpoint whitelists role values and validates isActive (0 or 1)
