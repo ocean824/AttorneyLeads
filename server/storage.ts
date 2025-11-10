@@ -597,6 +597,193 @@ export class DbStorage implements IStorage {
     const [updated] = await db.update(scheduledMeetings).set(updates).where(eq(scheduledMeetings.id, id)).returning();
     return updated;
   }
+
+  // Arrest Documents Methods
+  async getArrestDocuments(arrestRecordId: string): Promise<ArrestDocument[]> {
+    return await db
+      .select()
+      .from(arrestDocuments)
+      .where(eq(arrestDocuments.arrestRecordId, arrestRecordId))
+      .orderBy(desc(arrestDocuments.createdAt));
+  }
+
+  async getArrestDocument(id: string): Promise<ArrestDocument | undefined> {
+    const [document] = await db
+      .select()
+      .from(arrestDocuments)
+      .where(eq(arrestDocuments.id, id))
+      .limit(1);
+    return document;
+  }
+
+  async createArrestDocument(document: InsertArrestDocument): Promise<ArrestDocument> {
+    const [created] = await db
+      .insert(arrestDocuments)
+      .values(document)
+      .returning();
+    return created;
+  }
+
+  async updateArrestDocument(
+    id: string,
+    updates: Partial<Omit<ArrestDocument, "id" | "createdAt">>
+  ): Promise<ArrestDocument | undefined> {
+    const [updated] = await db
+      .update(arrestDocuments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(arrestDocuments.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Court Dockets Methods
+  async getCourtDockets(arrestRecordId: string): Promise<CourtDocket[]> {
+    return await db
+      .select()
+      .from(courtDockets)
+      .where(eq(courtDockets.arrestRecordId, arrestRecordId))
+      .orderBy(desc(courtDockets.createdAt));
+  }
+
+  async getCourtDocket(id: string): Promise<CourtDocket | undefined> {
+    const [docket] = await db
+      .select()
+      .from(courtDockets)
+      .where(eq(courtDockets.id, id))
+      .limit(1);
+    return docket;
+  }
+
+  async createCourtDocket(docket: InsertCourtDocket): Promise<CourtDocket> {
+    const [created] = await db
+      .insert(courtDockets)
+      .values(docket)
+      .returning();
+    return created;
+  }
+
+  async updateCourtDocket(
+    id: string,
+    updates: Partial<Omit<CourtDocket, "id" | "createdAt">>
+  ): Promise<CourtDocket | undefined> {
+    const [updated] = await db
+      .update(courtDockets)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(courtDockets.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Agent Interactions Methods (oldest first for chronological conversation)
+  async getAgentInteractions(sessionId?: string, arrestRecordId?: string): Promise<AgentInteraction[]> {
+    const conditions = [];
+    if (sessionId) {
+      conditions.push(eq(agentInteractions.sessionId, sessionId));
+    }
+    if (arrestRecordId) {
+      conditions.push(eq(agentInteractions.arrestRecordId, arrestRecordId));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    return await db
+      .select()
+      .from(agentInteractions)
+      .where(whereClause)
+      .orderBy(agentInteractions.createdAt); // ASC for conversation flow
+  }
+
+  async createAgentInteraction(interaction: InsertAgentInteraction): Promise<AgentInteraction> {
+    const [created] = await db
+      .insert(agentInteractions)
+      .values(interaction)
+      .returning();
+    return created;
+  }
+
+  // Delivery Logs Methods
+  async getDeliveryLogs(filters?: { deliveryType?: string; status?: string }): Promise<DeliveryLog[]> {
+    const conditions = [];
+    if (filters?.deliveryType) {
+      conditions.push(eq(deliveryLogs.deliveryType, filters.deliveryType));
+    }
+    if (filters?.status) {
+      conditions.push(eq(deliveryLogs.status, filters.status));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    return await db
+      .select()
+      .from(deliveryLogs)
+      .where(whereClause)
+      .orderBy(desc(deliveryLogs.createdAt));
+  }
+
+  async getDeliveryLog(id: string): Promise<DeliveryLog | undefined> {
+    const [log] = await db
+      .select()
+      .from(deliveryLogs)
+      .where(eq(deliveryLogs.id, id))
+      .limit(1);
+    return log;
+  }
+
+  async createDeliveryLog(log: InsertDeliveryLog): Promise<DeliveryLog> {
+    const [created] = await db
+      .insert(deliveryLogs)
+      .values(log)
+      .returning();
+    return created;
+  }
+
+  async updateDeliveryLog(
+    id: string,
+    updates: Partial<Omit<DeliveryLog, "id" | "createdAt">>
+  ): Promise<DeliveryLog | undefined> {
+    const [updated] = await db
+      .update(deliveryLogs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(deliveryLogs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Notification History Methods
+  async getNotificationHistory(filters?: { notificationType?: string; channel?: string }): Promise<NotificationHistory[]> {
+    const conditions = [];
+    if (filters?.notificationType) {
+      conditions.push(eq(notificationHistory.notificationType, filters.notificationType));
+    }
+    if (filters?.channel) {
+      conditions.push(eq(notificationHistory.channel, filters.channel));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    return await db
+      .select()
+      .from(notificationHistory)
+      .where(whereClause)
+      .orderBy(desc(notificationHistory.createdAt));
+  }
+
+  async createNotificationHistory(notification: InsertNotificationHistory): Promise<NotificationHistory> {
+    const [created] = await db
+      .insert(notificationHistory)
+      .values(notification)
+      .returning();
+    return created;
+  }
+
+  async updateNotificationHistory(
+    id: string,
+    updates: Partial<Omit<NotificationHistory, "id" | "createdAt">>
+  ): Promise<NotificationHistory | undefined> {
+    const [updated] = await db
+      .update(notificationHistory)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(notificationHistory.id, id))
+      .returning();
+    return updated;
+  }
 }
 
 export const storage = new DbStorage();

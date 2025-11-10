@@ -425,6 +425,7 @@ export const deliveryLogs = pgTable("delivery_logs", {
   errorMessage: text("error_message"),
   triggeredBy: varchar("triggered_by"), // user_id who triggered delivery
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
 }, (table) => ({
   deliveryTypeIdx: index("delivery_logs_delivery_type_idx").on(table.deliveryType),
@@ -446,6 +447,7 @@ export const notificationHistory = pgTable("notification_history", {
   sentAt: timestamp("sent_at"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   notificationTypeIdx: index("notification_history_notification_type_idx").on(table.notificationType),
   channelIdx: index("notification_history_channel_idx").on(table.channel),
@@ -473,12 +475,14 @@ export const insertAgentInteractionSchema = createInsertSchema(agentInteractions
 export const insertDeliveryLogSchema = createInsertSchema(deliveryLogs).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   completedAt: true,
 });
 
 export const insertNotificationHistorySchema = createInsertSchema(notificationHistory).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   sentAt: true,
 });
 
