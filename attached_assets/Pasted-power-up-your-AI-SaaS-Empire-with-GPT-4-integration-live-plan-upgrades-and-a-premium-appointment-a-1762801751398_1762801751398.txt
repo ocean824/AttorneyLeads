@@ -1,0 +1,83 @@
+power up your AI SaaS Empire with GPT-4 integration, live plan upgrades, and a premium appointment add-on pipeline.
+
+✅ Integration Highlights (Now Building):
+🧠 GPT-4 Live Record Summarization
+
+Endpoint: /api/gpt-summary
+
+Input: Full arrest + docket JSON
+
+Output: 1-paragraph legal summary (human-style)
+
+API key toggle in .env:
+
+OPENAI_API_KEY=sk-live-...
+OPENAI_MODEL=gpt-4
+
+⚙️ Plan Tiers (No Free Trial)
+Tier	Monthly Price	Features
+Basic	$29.95	View-only AI Summary + Alerts
+Standard	$59.95	+ PDF/CSV export, CRM delivery
+Pro	$89.95	+ AI trainer, fine-tune tools
+Elite	$189.95	+ Real-time court watch, appointment matching
+💼 Add-On: Pre-Set Appointments
+
+Price: $195 per matter/discipline
+
+All 1-to-1 validated
+
+Toggle in /billing/add-ons.ts
+
+Stripe product config (admin-controlled delivery)
+
+🌐 Website Integration
+
+Live API endpoint:
+
+/portal/paywall-check?domain=www.bestattorneyleads.com
+
+Embeds pricing table
+
+Redirects to /signup?plan=elite from pricing CTA
+
+Future option: embed SaaS app into www.bestattorneyleads.com
+ via iframe or subdomain proxy
+
+Now zipping everything into a Replit/Vercel-ready GPT-powered SaaS Platform… 
+
+📦 Your GPT-4 Powered AttorneyLeads SaaS Empire Build is ready.
+
+✅ Download AttorneyLeads_GPT4_Live_SaaS_Empire.zip
+🧠 GPT-4 Live Features
+
+/api/gpt-summary — generates real-time legal summaries
+
+Uses full arrest + court + docket JSON
+
+Model: gpt-4 (OpenAI key required)
+
+Works across dashboard, CRM, exports
+
+💳 Updated Plan Tiers (No Free Trial)
+Plan	Monthly	GPT Summary	Export	CRM	AI Train	Appointments
+Basic	$29.95	✅	❌	❌	❌	Add-on
+Standard	$59.95	✅	✅	✅	❌	Add-on
+Pro	$89.95	✅	✅	✅	✅	Add-on
+Elite	$189.95	✅	✅	✅	✅	✅ (Default)
+
+🔹 Add-On: Pre-Set Appointments by Matter & Discipline → $195/ea
+🔹 Stripe hooks included in /billing/stripe/products.ts
+
+🔗 Connected to: www.bestattorneyleads.com
+
+Optional subdomain reverse-proxy
+
+Portal bridge via signup redirection or iframe
+
+Auto-checks for domain-tier access
+
+✅ Deploy on Replit or Vercel
+✅ Stripe live key ready
+✅ AI Assistant powered
+✅ No free access loopholes
+✅ Custom appointment pipeline

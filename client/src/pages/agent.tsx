@@ -259,6 +259,10 @@ export default function AgentPage() {
   };
 
   const handleNewSession = () => {
+    // Clear current session from cache to ensure clean state
+    if (currentSessionId) {
+      queryClient.removeQueries({ queryKey: ["/api/agent/sessions", currentSessionId] });
+    }
     setCurrentSessionId(null);
     localStorage.removeItem("agent_last_session");
   };

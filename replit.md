@@ -17,181 +17,45 @@ Do not make changes to the `scripts/dbReset.ts` file.
 - **Algorithms**: Levenshtein distance for fuzzy matching
 
 ### Key Features
-- **Data Acquisition**: Multi-county scraping for 20 major Florida counties using Python microservices (BeautifulSoup4).
-- **Lead Management**: Lead scoring (0-100 based on charge severity, bond, demographics), duplicate detection with fuzzy matching, and AI enhancement (GPT-4o-mini for charge categorization).
-- **Authentication & Security**: Complete session-based auth with password reset, TOTP 2FA with QR codes, backup codes (with PDF export), email/SMS OTP fallback, enforced admin 2FA, admin hard-gate TOTP setup enforcement, and trusted device recognition (30-day 2FA bypass). AES-256-GCM encryption for TOTP secrets, bcrypt for passwords, SHA-256 for device tokens and backup tokens.
+- **Data Acquisition**: Multi-county scraping for 20 major Florida counties using Python microservices.
+- **Lead Management**: Lead scoring, duplicate detection with fuzzy matching, and AI enhancement (GPT-4o-mini for charge categorization).
+- **Authentication & Security**: Complete session-based auth with password reset, TOTP 2FA (with QR codes, backup codes, PDF export), email/SMS OTP fallback, enforced admin 2FA, admin hard-gate TOTP setup enforcement, and trusted device recognition. Uses AES-256-GCM for TOTP secrets, bcrypt for passwords, SHA-256 for tokens.
 - **CRM Integration**: Prospect discovery (LinkedIn/Facebook scraping), lead generation forms, automated meeting scheduling (Calendly), and bi-directional Google Sheets sync.
-- **Analytics & Monitoring**: Real-time job monitoring, analytics dashboard with Recharts visualizations, and comprehensive records management.
+- **Analytics & Monitoring**: Real-time job monitoring, analytics dashboard with Recharts, and comprehensive records management.
 - **Observability**: Liveness (`/healthz`), readiness (`/readyz`), and Prometheus metrics (`/metrics`) endpoints.
-- **Security**: Structured logging with PII redaction, request IDs, CSP, X-Frame-Options, HSTS-ready headers, and rate limiting.
+- **Security**: Structured logging with PII redaction, request IDs, CSP, X-Frame-Options, HSTS, and rate limiting.
+- **AI Agent Assistant**: Production-ready conversational interface with session management, contextual arrest record integration, and secure API endpoints. Includes advanced chat UI with optimistic updates, error recovery, and session persistence.
+- **Enhanced Scraper Engine**: Expanded database schema with new tables (`arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`), performance indexes, and Python retrieval modules for documents and court dockets with fuzzy matching and retry logic.
 
 ### Data Models
-- **users**: User accounts with roles, encrypted TOTP secrets, and phone numbers
-- **password_reset_tokens**: Temporary password reset tokens
-- **user_backup_codes**: Hashed backup codes for 2FA fallback
-- **user_trusted_devices**: Trusted devices for 2FA bypass (30-day TTL)
-- **ArrestRecord**: Core data including leadScore and AI fields
-- **ScrapeJob**: Tracks scraping tasks
-- **CRMSyncLog**: Export/sync history
-- **DuplicateCandidate**: Records potential duplicates
-- **CrmProspect**: Manages prospect details
-- **OutreachCampaign**: Tracks campaign progress
-- **ScheduledMeeting**: Manages meeting logistics
+- **User Accounts**: `users`, `password_reset_tokens`, `user_backup_codes`, `user_trusted_devices`
+- **Arrest Records**: `ArrestRecord`, `ScrapeJob`, `CRMSyncLog`, `DuplicateCandidate`
+- **CRM**: `CrmProspect`, `OutreachCampaign`, `ScheduledMeeting`
+- **AI/Scraper Enhancements**: `arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`
 
 ### Design Guidelines
-The application follows a professional B2B design inspired by Carbon Design System principles, using Inter and Space Grotesk typography, a blue primary color scheme, and Shadcn UI components for consistency and accessibility.
+The application follows a professional B2B design inspired by Carbon Design System principles, using Inter and Space Grotesk typography, a blue primary color scheme, and Shadcn UI components.
 
 ### API Endpoints
-**Authentication:**
-- `/api/auth/bootstrap` - Create initial admin user
-- `/api/auth/login` - Login with email/password
-- `/api/auth/whoami` - Get current session user
-- `/api/auth/logout` - Destroy session
-- `/api/auth/forgot` - Request password reset
-- `/api/auth/reset` - Reset password with token
-- `/api/auth/2fa/setup/start` - Begin TOTP setup
-- `/api/auth/2fa/setup/verify` - Complete TOTP setup
-- `/api/auth/2fa/verify` - Verify TOTP during login
-- `/api/auth/2fa/disable` - Disable TOTP
-- `/api/auth/backup/verify` - Login with backup code
-- `/api/auth/otp/send` - Send email/SMS OTP
-- `/api/auth/otp/verify` - Verify email/SMS OTP
-- `/api/auth/2fa/status` - Check 2FA status
-- `/api/auth/2fa/regenerate-backup` - Generate new backup codes
-- `/api/auth/backup-codes/pdf` - Export backup codes as PDF
-- `/api/auth/trusted-devices` - Trust current device (POST), list devices (GET)
-- `/api/auth/trusted-devices/:id` - Revoke trusted device (DELETE)
-- `/api/account/phone` - Update phone number
+- **Authentication**: `/api/auth/*` (login, logout, 2FA setup/verify, password reset, trusted devices, etc.)
+- **Admin Panel**: `/api/admin/*` (user management, bootstrap)
+- **Core Operations**: Stats, scrape management, record retrieval, export, deduplication, analytics.
+- **CRM**: Prospects, discovery, outreach, meetings, sheets sync.
+- **Observability**: `/healthz`, `/readyz`, `/metrics`.
+- **AI Agent**: `/api/agent/*` (chat, session management).
 
-**Admin Panel:**
-- `/api/admin/bootstrap` - Create/update admin user from Replit Secrets
-- `/api/admin/users` - List all users (admin-only)
-- `/api/admin/users/:id` - Update user role/active status (admin-only)
-- `/api/admin/users/:id/reset` - Trigger password reset (admin-only)
-
-**Core Operations:**
-Stats, scrape management, record retrieval, export, deduplication, analytics
-
-**CRM:**
-Prospects, discovery, outreach, meetings, sheets sync
-
-**Observability:**
-- `/healthz` - Liveness probe (basic DB connectivity check)
-- `/readyz` - Readiness probe (detailed database + environment checks)
-- `/metrics` - Prometheus metrics endpoint (record counts, job counts, AI-enhanced counts)
-
-## Required Environment Variables
-**Authentication (Required):**
-- `AUTH_ENC_KEY` - **REQUIRED** 32+ character secure random string for AES-256-GCM encryption of TOTP secrets. Application will fail to start if missing or too short.
-- `SESSION_SECRET` - Session encryption secret
-- `TOTP_ISSUER` - TOTP issuer name (e.g., "Attorney Leads")
-- `APP_URL` - Base application URL (e.g., http://localhost:5000)
-- `ENFORCE_2FA_FOR_ADMINS` - Set to "true" to require all admin users have 2FA enabled
-- `ENFORCE_ADMIN_TOTP_SETUP` - Set to "true" to require admin users complete TOTP setup before accessing fallback auth (prevents bypass)
-- `TRUSTED_DEVICE_DAYS` - Number of days a trusted device remains valid (default: 30)
-- `DEVICE_COOKIE_NAME` - Name of the device cookie (default: "device_token")
-
-**Admin Bootstrap (Optional):**
-- `ADMIN_EMAIL` - Admin user email for bootstrap endpoint
-- `ADMIN_PASSWORD` - Admin user password for bootstrap endpoint
-- `ADMIN_NAME` - Admin user display name for bootstrap endpoint
-
-**Optional:**
-- `SMTP_*` - Email configuration for real password reset/OTP emails (falls back to console logging)
-- `TWILIO_*` - SMS configuration for SMS OTP (falls back to console logging)
-
-## Operational Tools
-
-**Utility Scripts** (`scripts/`):
-- `envDoctor.ts` - Validates all required environment variables are set correctly
-- `seed.ts` - Seeds database with sample data for development
-- `smoke-test.ts` - Runs basic health checks on all API endpoints
-- `first-run.ts` - First-run setup and initialization
-- `dbReset.ts` - Database reset utility (use with caution)
-
-**Security Middleware** (`server/middleware/`):
-- `loggerMiddleware.ts` - Request logging with X-Request-Id correlation
-- `securityHeaders.ts` - CSP, X-Frame-Options, X-Content-Type-Options, COEP, COOP
-- `rateLimiter.ts` - In-memory rate limiting with route-specific configs
-- `protectDashboard.ts` - Server-side HTML guard for protected routes
-
-**Configuration** (`config/`):
-- `rateLimits.ts` - Rate limit presets (strict/moderate/lenient) and route-specific rules
-- `permissions.ts` - Permission system configuration
-- `featureFlags.ts` - Feature flag management
-
-**Documentation** (`docs/`):
-- `PRD_MASTER.md` - Complete product requirements document
-- `ARCHITECTURE.md` - System architecture and design decisions
-- `DEPLOY_REPLIT.md` - Deployment guide for Replit
-- `OPERATIONS.md` - Operations runbook and troubleshooting
-- `SECURITY.md` - Security documentation and best practices
+### Security Middleware
+- `loggerMiddleware.ts`: Request logging with X-Request-Id.
+- `securityHeaders.ts`: CSP, X-Frame-Options, etc.
+- `rateLimiter.ts`: In-memory rate limiting.
+- `protectDashboard.ts`: Server-side HTML guard for protected routes.
 
 ## External Dependencies
-- **PostgreSQL (Neon)**: Primary database for persistent storage
-- **OpenAI GPT-4o-mini**: Integrated for AI-powered charge categorization and risk assessment
-- **PhantomBuster**: Used for automated prospect discovery from LinkedIn and Facebook
-- **Calendly**: Integrated for automated meeting scheduling
-- **Google Sheets API**: Provides bi-directional synchronization for prospects and arrest records
-- **Prometheus**: For collecting and monitoring application metrics via the `/metrics` endpoint
-
-## Recent Changes (November 2025)
-
-### Enhanced Scraper Engine - Phase 1 Complete (November 10, 2025)
-**Data Foundation Layer** - All tasks architect-reviewed and production-ready:
-
-1. **Database Schema Expansion**:
-   - Added 5 new production-ready tables: `arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`
-   - All tables include proper foreign keys with cascade deletes, retry logic fields, and status tracking
-   - Performance indexes added for all high-cardinality FKs (arrestRecordId, sessionId, userId) and filtered columns (status, retrievalStatus, etc.)
-   - 15 database indexes created for production-scale query performance
-
-2. **Python Retrieval Modules**:
-   - **Document Retriever** (`server/document_retriever.py`): Retrieves affidavits, offense reports, booking sheets, mugshots with retry logic, file verification (SHA-256), and local storage
-   - **Docket Retriever** (`server/docket_retriever.py`): Court docket retrieval with fuzzy name matching (Levenshtein), date proximity analysis, charge alignment, and confidence scoring
-   - **Critical Fix**: All county-specific methods return structured status dicts (success/failed/not_found) on every code path for complete observability
-
-3. **Storage Layer** (`server/storage.ts`):
-   - Extended IStorage interface with methods for all 5 new tables
-   - Implemented DbStorage CRUD methods with proper filtering, ordering, and timestamp management
-   - Agent interactions ordered oldest-first (ASC) for conversation flow
-   - Documents/dockets/logs ordered newest-first (DESC)
-   - Auto-refresh updatedAt timestamps on all updates
-
-**Next Steps**: Phase 2 (AI Agent), Phase 3 (Visualization), Phase 4 (Export), Phase 5 (Notifications), Phase 6 (CRM Delivery)
-
-- **Authentication & Security Architecture**: Triple-layer protection for SPA:
-  1. **Server-Side HTML Guard**: `protectDashboard` middleware redirects unauthenticated GET requests to protected routes (runs before Vite)
-  2. **Client-Side Guards**: `PrivateRoute` component for defense-in-depth and better UX
-  3. **API Authentication**: `ensureAuthed`/`ensureAdmin` middleware on all API endpoints
-- **Complete Authentication System**: Integrated comprehensive auth with password reset, TOTP 2FA, backup codes, email/SMS fallback, and admin 2FA enforcement
-- **Advanced Authentication Features**:
-  - **Admin Hard-Gate TOTP Setup**: `ENFORCE_ADMIN_TOTP_SETUP` flag prevents admins from using fallback authentication until TOTP is configured, eliminating 2FA bypass vulnerability
-  - **Trusted Device Recognition**: 30-day 2FA bypass for trusted devices with cryptographically secure tokens, httpOnly cookies, and SHA-256 hashing
-  - **Backup Codes PDF Export**: Download printable backup codes as PDF for secure offline storage
-  - **Devices Management**: `/account/devices` page to view and revoke trusted devices
-  - **Enhanced 2FA UX**: "Trust this device" checkbox on all 2FA verification pages
-- **Security Enhancements**: AES-256-GCM encryption for TOTP secrets, proper sanitization of API responses to prevent secret exposure, fail-fast validation for AUTH_ENC_KEY, server-side device token generation and hashing
-- **Session Management**: PostgreSQL-backed sessions with proper cookie handling, device cookie clearing on logout, and session flags for admin hard-gate enforcement
-- **Server-Side HTML Guard (`protectDashboard` middleware)**:
-  - **Registration**: Runs AFTER session setup, BEFORE routes/Vite in `server/index.ts`
-  - **Protected Routes**: /dashboard, /crm, /records, /jobs, /duplicates, /analytics, /admin, /account
-  - **Case-Insensitive**: Normalizes paths to lowercase (blocks /Dashboard, /DASHBOARD, etc.)
-  - **Secure by Default**: Redirects all unauthenticated GET requests to "/" (no Accept header bypass)
-  - **API Separation**: `/api/*` routes protected by their own middleware
-- **Login-Only Landing Page**:
-  - **Landing Page**: `/` serves login panel with auto-redirect for authenticated users
-  - **Protected Routes**: All application routes protected by server guard + client guard + API auth
-  - **Logout Button**: Added to header, redirects to "/" after logout
-  - **Conditional Header**: Auto-hides on landing/login pages for unauthenticated users
-- **Admin Panel for User Management**:
-  - **Admin Bootstrap**: `POST /api/admin/bootstrap` endpoint creates/updates admin user from Replit Secrets (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME) using scrypt hashing
-  - **Admin Routes**: Protected by `ensureAdmin` middleware, includes user list, role management (admin/user), activation controls, and password reset trigger
-  - **Admin Create Users**: `POST /api/admin/users` creates new users (admin-only) with role whitelist validation ["user", "admin"]
-  - **Admin UI**: Table-based interface at `/admin/users` with role dropdown, active checkbox, and reset password button per user
-  - **Login Flow Enhancement**: Admin users automatically redirect to `/admin/users` after login instead of `/dashboard`
-  - **Security**: Server-side validation on PATCH endpoint whitelists role values and validates isActive (0 or 1)
-- **CRM Quick Discover Feature**:
-  - **Quick Discover Button**: One-click prospect discovery using saved default search parameters (localStorage)
-  - **Save Defaults**: "Save as default" button in Discovery tab stores search query + location for quick access
-  - **Fixed API Calls**: Corrected `apiRequest` parameter order throughout CRM mutations (`apiRequest("POST", url, data)`)
+- **PostgreSQL (Neon)**: Primary database.
+- **OpenAI GPT-4o-mini**: AI for charge categorization and AI agent.
+- **PhantomBuster**: Prospect discovery from LinkedIn and Facebook.
+- **Calendly**: Automated meeting scheduling.
+- **Google Sheets API**: Bi-directional synchronization.
+- **Prometheus**: Metrics collection and monitoring.
+- **Twilio**: (Optional) SMS for OTP.
+- **SMTP Service**: (Optional) Email for password reset/OTP.
