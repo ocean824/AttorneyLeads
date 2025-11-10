@@ -15,6 +15,7 @@ import CRM from "@/pages/crm";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import AdminPanel from "@/pages/admin";
+import AgentPage from "@/pages/agent";
 import Forgot from "@/pages/forgot";
 import Reset from "@/pages/reset";
 import TwoFA from "@/pages/2fa";
@@ -64,6 +65,9 @@ function Router() {
       <Route path="/admin" >
         {/* Both /admin and /admin/users render the admin panel */}
         <PrivateRoute><AdminPanel /></PrivateRoute>
+      </Route>
+      <Route path="/admin/tools/agent" >
+        <PrivateRoute><AgentPage /></PrivateRoute>
       </Route>
       
       <Route component={NotFound} />
