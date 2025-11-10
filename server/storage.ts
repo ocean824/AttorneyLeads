@@ -23,6 +23,10 @@ import {
   type InsertDeliveryLog,
   type NotificationHistory,
   type InsertNotificationHistory,
+  type AppointmentSlot,
+  type InsertAppointmentSlot,
+  type AppointmentBooking,
+  type InsertAppointmentBooking,
   users,
   arrestRecords,
   scrapeJobs,
@@ -36,6 +40,8 @@ import {
   agentInteractions,
   deliveryLogs,
   notificationHistory,
+  appointmentSlots,
+  appointmentBookings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, or, like, desc, sql } from "drizzle-orm";
@@ -158,6 +164,20 @@ export interface IStorage {
     plan?: string; 
     subscriptionCurrentPeriodEnd?: number | null;
   }): Promise<void>;
+
+  // Appointment Slots
+  getAppointmentSlots(filters?: { isActive?: boolean; dayOfWeek?: number }): Promise<AppointmentSlot[]>;
+  getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined>;
+  createAppointmentSlot(slot: InsertAppointmentSlot): Promise<AppointmentSlot>;
+  updateAppointmentSlot(id: string, updates: Partial<Omit<AppointmentSlot, "id" | "createdAt">>): Promise<AppointmentSlot | undefined>;
+  deleteAppointmentSlot(id: string): Promise<boolean>;
+
+  // Appointment Bookings
+  getAppointmentBookings(filters?: { status?: string; appointmentDate?: string }): Promise<AppointmentBooking[]>;
+  getAppointmentBooking(id: string): Promise<AppointmentBooking | undefined>;
+  createAppointmentBooking(booking: InsertAppointmentBooking): Promise<AppointmentBooking>;
+  updateAppointmentBooking(id: string, updates: Partial<Omit<AppointmentBooking, "id" | "createdAt">>): Promise<AppointmentBooking | undefined>;
+  getBookingCountForSlot(slotId: string, date: string): Promise<number>;
 }
 
 export class DbStorage implements IStorage {
@@ -863,6 +883,99 @@ export class DbStorage implements IStorage {
         updatedAt: Math.floor(Date.now() / 1000),
       })
       .where(eq(users.id, userId));
+  }
+
+  // Appointment Slots Methods
+  async getAppointmentSlots(filters?: { isActive?: boolean; dayOfWeek?: number }): Promise<AppointmentSlot[]> {
+    const conditions = [];
+    
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(appointmentSlots.isActive, filters.isActive ? 1 : 0));
+    }
+    if (filters?.dayOfWeek !== undefined) {
+      conditions.push(eq(appointmentSlots.dayOfWeek, filters.dayOfWeek));
+    }
+
+    const query = conditions.length > 0 
+      ? db.select().from(appointmentSlots).where(and(...conditions))
+      : db.select().from(appointmentSlots);
+
+    return await query;
+  }
+
+  async getAppointmentSlot(id: string): Promise<AppointmentSlot | undefined> {
+    const [slot] = await db.select().from(appointmentSlots).where(eq(appointmentSlots.id, id));
+    return slot;
+  }
+
+  async createAppointmentSlot(slot: InsertAppointmentSlot): Promise<AppointmentSlot> {
+    const [created] = await db.insert(appointmentSlots).values(slot).returning();
+    return created;
+  }
+
+  async updateAppointmentSlot(id: string, updates: Partial<Omit<AppointmentSlot, "id" | "createdAt">>): Promise<AppointmentSlot | undefined> {
+    const [updated] = await db
+      .update(appointmentSlots)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(appointmentSlots.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAppointmentSlot(id: string): Promise<boolean> {
+    const result = await db.delete(appointmentSlots).where(eq(appointmentSlots.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Appointment Bookings Methods
+  async getAppointmentBookings(filters?: { status?: string; appointmentDate?: string }): Promise<AppointmentBooking[]> {
+    const conditions = [];
+    
+    if (filters?.status) {
+      conditions.push(eq(appointmentBookings.status, filters.status));
+    }
+    if (filters?.appointmentDate) {
+      conditions.push(eq(appointmentBookings.appointmentDate, filters.appointmentDate));
+    }
+
+    const query = conditions.length > 0
+      ? db.select().from(appointmentBookings).where(and(...conditions)).orderBy(desc(appointmentBookings.createdAt))
+      : db.select().from(appointmentBookings).orderBy(desc(appointmentBookings.createdAt));
+
+    return await query;
+  }
+
+  async getAppointmentBooking(id: string): Promise<AppointmentBooking | undefined> {
+    const [booking] = await db.select().from(appointmentBookings).where(eq(appointmentBookings.id, id));
+    return booking;
+  }
+
+  async createAppointmentBooking(booking: InsertAppointmentBooking): Promise<AppointmentBooking> {
+    const [created] = await db.insert(appointmentBookings).values(booking).returning();
+    return created;
+  }
+
+  async updateAppointmentBooking(id: string, updates: Partial<Omit<AppointmentBooking, "id" | "createdAt">>): Promise<AppointmentBooking | undefined> {
+    const [updated] = await db
+      .update(appointmentBookings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(appointmentBookings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getBookingCountForSlot(slotId: string, date: string): Promise<number> {
+    const bookings = await db
+      .select()
+      .from(appointmentBookings)
+      .where(
+        and(
+          eq(appointmentBookings.slotId, slotId),
+          eq(appointmentBookings.appointmentDate, date),
+          eq(appointmentBookings.status, "confirmed")
+        )
+      );
+    return bookings.length;
   }
 }
 
