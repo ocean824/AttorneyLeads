@@ -17,6 +17,7 @@ import path from "path";
 import { registerCrmRoutes } from "./crm-routes";
 import { registerAuthRoutes } from "./auth-routes";
 import { registerAgentRoutes } from "./agent-routes";
+import { appointmentRouter } from "./appointment-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth & Admin routes
@@ -27,6 +28,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register AI Agent routes
   registerAgentRoutes(app);
+
+  // Register Appointment routes
+  app.use("/api/appointments", appointmentRouter);
+
   // Dashboard Stats
   app.get("/api/stats", async (req, res) => {
     try {

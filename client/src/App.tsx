@@ -15,6 +15,7 @@ import CRM from "@/pages/crm";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import AdminPanel from "@/pages/admin";
+import AdminCalendar from "@/pages/admin/calendar";
 import AgentPage from "@/pages/agent";
 import Forgot from "@/pages/forgot";
 import Reset from "@/pages/reset";
@@ -61,6 +62,9 @@ function Router() {
       </Route>
       <Route path="/admin/users" >
         <PrivateRoute><AdminPanel /></PrivateRoute>
+      </Route>
+      <Route path="/admin/calendar" >
+        <PrivateRoute><AdminCalendar /></PrivateRoute>
       </Route>
       <Route path="/admin" >
         {/* Both /admin and /admin/users render the admin panel */}

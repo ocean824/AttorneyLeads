@@ -8,8 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { MessageCircle, Send, Plus, Trash2, Loader2 } from "lucide-react";
+import { MessageCircle, Send, Plus, Trash2, Loader2, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { AppointmentBookingDialog } from "@/components/agent/appointment-booking-dialog";
 
 interface Message {
   id: string;
@@ -38,6 +39,7 @@ export default function AgentPage() {
   const { toast } = useToast();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [inputMessage, setInputMessage] = useState("");
+  const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load last session from localStorage on mount
@@ -343,18 +345,29 @@ export default function AgentPage() {
           <CardTitle className="text-lg">
             {currentSessionId ? "AI Assistant" : "New Conversation"}
           </CardTitle>
-          {currentSessionId && (
+          <div className="flex items-center gap-2">
             <Button
               size="sm"
-              variant="destructive"
-              onClick={handleClearSession}
-              disabled={clearMutation.isPending}
-              data-testid="button-clear-session"
+              variant="ghost"
+              onClick={() => setIsBookingDialogOpen(true)}
+              data-testid="button-open-booking-dialog"
             >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Clear
+              <Calendar className="h-4 w-4 mr-1" />
+              Schedule
             </Button>
-          )}
+            {currentSessionId && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleClearSession}
+                disabled={clearMutation.isPending}
+                data-testid="button-clear-session"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent className="flex-1 overflow-hidden p-6">
@@ -454,6 +467,14 @@ export default function AgentPage() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Appointment Booking Dialog */}
+      <AppointmentBookingDialog
+        open={isBookingDialogOpen}
+        onOpenChange={setIsBookingDialogOpen}
+        sessionId={currentSessionId}
+        arrestRecordId={null}
+      />
     </div>
   );
 }
