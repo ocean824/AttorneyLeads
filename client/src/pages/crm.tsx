@@ -164,6 +164,45 @@ export default function CRMPage() {
     syncSheetsMutation.mutate({ spreadsheetId, type });
   };
 
+  // --- Quick Discover (saved defaults) helpers ---
+  const DEFAULTS_KEY = "crmDiscoverDefaults";
+
+  type DiscoverDefaults = { searchQuery: string; location: string };
+
+  const getDiscoverDefaults = (): DiscoverDefaults => {
+    try {
+      const raw = localStorage.getItem(DEFAULTS_KEY);
+      if (raw) return JSON.parse(raw) as DiscoverDefaults;
+    } catch {}
+    // Safe fallback if nothing saved yet
+    return { searchQuery: "Personal Injury law firms", location: "Florida" };
+  };
+
+  const handleSaveDefaults = () => {
+    // Save whatever is currently typed into the inputs as the defaults
+    const payload: DiscoverDefaults = { searchQuery, location };
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(payload));
+    toast({ title: "Saved", description: "Defaults updated for quick discover." });
+  };
+
+  const handleQuickDiscover = () => {
+    // Prevent concurrent executions
+    if (discoverProspectsMutation.isPending) return;
+    
+    const { searchQuery: q, location: loc } = getDiscoverDefaults();
+    if (!q.trim()) {
+      toast({
+        title: "Error",
+        description: "No saved defaults. Please save search query first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Use the existing mutation which already handles async flow and toasts
+    discoverProspectsMutation.mutate({ searchQuery: q, location: loc });
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       new: "bg-blue-500",
@@ -212,10 +251,33 @@ export default function CRMPage() {
         <TabsContent value="prospects">
           <Card>
             <CardHeader>
-              <CardTitle>Prospect Database</CardTitle>
-              <CardDescription>
-                {prospects.length} total prospects
-              </CardDescription>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Prospect Database</CardTitle>
+                  <CardDescription>{prospects.length} total prospects</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleQuickDiscover}
+                    disabled={discoverProspectsMutation.isPending}
+                    data-testid="button-quick-discover"
+                  >
+                    {discoverProspectsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Fetching…
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Discover
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {prospectsLoading ? (
@@ -408,23 +470,35 @@ export default function CRMPage() {
                   data-testid="input-location"
                 />
               </div>
-              <Button
-                onClick={handleDiscoverProspects}
-                disabled={discoverProspectsMutation.isPending}
-                data-testid="button-discover-prospects"
-              >
-                {discoverProspectsMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Discovering...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4 mr-2" />
-                    Discover Prospects
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleDiscoverProspects}
+                  disabled={discoverProspectsMutation.isPending}
+                  data-testid="button-discover-prospects"
+                >
+                  {discoverProspectsMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Discovering...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Discover Prospects
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveDefaults}
+                  data-testid="button-save-discover-defaults"
+                  title="Save current search query + location as defaults for the Quick Discover button"
+                >
+                  Save as default
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -11,8 +11,12 @@ import {
 import { phantomBusterService } from "./phantombuster-service";
 import { calendlyService } from "./calendly-service";
 import { googleSheetsService } from "./sheets-service";
+import { ensureAuthed } from "./middleware/ensureAdmin";
 
 export function registerCrmRoutes(app: Express) {
+  // All CRM endpoints require an authenticated session
+  app.use("/api/crm", ensureAuthed);
+
   // Prospects Management
   app.get("/api/crm/prospects", async (req, res) => {
     try {

@@ -5,8 +5,33 @@ import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { hashPassword } from "./security/password";
 
 export function registerAdminRoutes(app: Express) {
+  // Create a user (admin-only)
+  app.post("/api/admin/users", ensureAdmin, async (req: Request, res: Response) => {
+    const { email, password, role = "user" } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: "email and password are required" });
+    
+    // Validate role (whitelist)
+    if (role !== "user" && role !== "admin") {
+      return res.status(400).json({ error: "Invalid role. Must be 'user' or 'admin'" });
+    }
+
+    const existing = await db.query.users.findFirst({ where: eq(users.email, email) as any });
+    if (existing) return res.status(409).json({ error: "User already exists" });
+
+    const passwordHash = await hashPassword(password);
+    const [row] = await db.insert(users).values({
+      email,
+      passwordHash,
+      role,
+      isActive: 1,
+    }).returning();
+
+    res.status(201).json({ user: { id: row.id, email: row.email, role: row.role } });
+  });
+
   app.get("/api/admin/users", ensureAdmin, async (_req: Request, res: Response) => {
     const rows = await db.select().from(users);
     const safe = rows.map(r => ({ id: r.id, email: r.email, role: r.role, isActive: r.isActive, lastLoginAt: r.lastLoginAt, createdAt: r.createdAt }));
