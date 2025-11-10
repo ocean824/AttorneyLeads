@@ -1,0 +1,64 @@
+I shipped a drop-in patch that:
+
+Creates a full Admin Panel at /admin/users (user list, role promote/demote, suspend/activate, trigger password reset).
+
+Adds /api/admin routes with proper admin-only guards.
+
+Seeds your admin login + password from Replit Secrets via a one-shot /api/admin/bootstrap route.
+
+Adds an “Admin login” link at the bottom of the landing page (so it’s visible even when the header is hidden).
+
+Download: admin_panel_bootstrap_patch.zip
+
+What’s inside
+server/middleware/ensureAdmin.ts     # ensureAuthed / ensureAdmin guards
+server/admin-routes.ts               # /api/admin/users (GET, PATCH), /:id/reset (POST)
+server/admin-bootstrap.ts            # POST /api/admin/bootstrap (seed admin from secrets)
+client/src/pages/admin/index.tsx     # Admin Panel UI
+client/src/pages/login-landing.tsx   # now shows “Admin login” link in the footer
+client/src/App.ROUTES.ADMIN.txt      # router snippet to mount /admin/users
+ADMIN_PANEL_README.md                # step-by-step wiring + secrets guide
+
+Save your admin to Replit Secrets
+
+Set these in Replit → Tools → Secrets:
+
+ADMIN_EMAIL=elite@lawpracticepros.com
+ADMIN_PASSWORD=EliteLaw2025!
+ADMIN_NAME=Jarred
+
+
+You can change these anytime; just re-run the bootstrap endpoint to sync.
+
+Bootstrap the admin (one time)
+
+Run:
+
+curl -X POST https://YOUR-APP-URL/api/admin/bootstrap
+
+
+If the user doesn’t exist → it’s created as admin and activated.
+
+If it does → it’s promoted to admin, activated, and the password is updated to match your secret.
+
+Mount the server pieces
+
+In your server startup (after sessions & db), add:
+
+import { registerAdminRoutes } from "./server/admin-routes";
+import { registerAdminBootstrap } from "./server/admin-bootstrap";
+
+registerAdminRoutes(app);
+registerAdminBootstrap(app);
+
+Wire the client route
+
+Add the panel route (Wouter):
+
+// e.g., in App.tsx
+import AdminPanel from "@/pages/admin";
+<Route path="/admin/users" component={AdminPanel} />
+
+“Full access to everything”
+
+All /api/admin/ endpoints and the Admin Panel require req.session.user.role === "admin". If you’ve got other feature gates, simply check isAdmin to bypass. The sample middleware gives you ensureAuthed and ensureAdmin for clarity.
