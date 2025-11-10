@@ -23,6 +23,7 @@ import {
   type InsertDeliveryLog,
   type NotificationHistory,
   type InsertNotificationHistory,
+  users,
   arrestRecords,
   scrapeJobs,
   crmSyncLog,
@@ -139,6 +140,24 @@ export interface IStorage {
   getNotificationHistory(filters?: { notificationType?: string; channel?: string }): Promise<NotificationHistory[]>;
   createNotificationHistory(notification: InsertNotificationHistory): Promise<NotificationHistory>;
   updateNotificationHistory(id: string, updates: Partial<Omit<NotificationHistory, "id" | "createdAt">>): Promise<NotificationHistory | undefined>;
+
+  // User Billing
+  getUserById(userId: string): Promise<{ 
+    id: string; 
+    email: string; 
+    plan: string; 
+    stripeCustomerId?: string | null; 
+    stripeSubscriptionId?: string | null; 
+    subscriptionStatus?: string | null; 
+    subscriptionCurrentPeriodEnd?: number | null;
+  } | undefined>;
+  updateUserStripeInfo(userId: string, updates: { 
+    stripeCustomerId?: string; 
+    stripeSubscriptionId?: string; 
+    subscriptionStatus?: string; 
+    plan?: string; 
+    subscriptionCurrentPeriodEnd?: number | null;
+  }): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -804,6 +823,46 @@ export class DbStorage implements IStorage {
       .where(eq(notificationHistory.id, id))
       .returning();
     return updated;
+  }
+
+  async getUserById(userId: string): Promise<{ 
+    id: string; 
+    email: string; 
+    plan: string; 
+    stripeCustomerId?: string | null; 
+    stripeSubscriptionId?: string | null; 
+    subscriptionStatus?: string | null; 
+    subscriptionCurrentPeriodEnd?: number | null;
+  } | undefined> {
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        plan: users.plan,
+        stripeCustomerId: users.stripeCustomerId,
+        stripeSubscriptionId: users.stripeSubscriptionId,
+        subscriptionStatus: users.subscriptionStatus,
+        subscriptionCurrentPeriodEnd: users.subscriptionCurrentPeriodEnd,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+    return user;
+  }
+
+  async updateUserStripeInfo(userId: string, updates: { 
+    stripeCustomerId?: string; 
+    stripeSubscriptionId?: string; 
+    subscriptionStatus?: string; 
+    plan?: string; 
+    subscriptionCurrentPeriodEnd?: number | null;
+  }): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        ...updates,
+        updatedAt: Math.floor(Date.now() / 1000),
+      })
+      .where(eq(users.id, userId));
   }
 }
 
