@@ -166,7 +166,7 @@ async function callAnthropic(
       content: content.type === 'text' ? content.text : '',
       provider: 'claude',
       model: config.model,
-      tokensUsed: response.usage?.input_tokens + response.usage?.output_tokens,
+      tokensUsed: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
       latencyMs: Date.now() - startTime,
     };
   } catch (error: any) {
@@ -184,6 +184,9 @@ async function callGemini(
   const startTime = Date.now();
   const client = getGeminiClient();
   
+  // Build proper contents structure
+  const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
+  
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Timeout')), config.timeoutMs);
   });
@@ -192,7 +195,12 @@ async function callGemini(
     const result = await Promise.race([
       client.models.generateContent({
         model: config.model,
-        contents: systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: fullPrompt }]
+          }
+        ],
         config: {
           maxOutputTokens: config.maxTokens,
           temperature: config.temperature,
@@ -205,7 +213,7 @@ async function callGemini(
       content: result.text || '',
       provider: 'gemini',
       model: config.model,
-      tokensUsed: result.usageMetadata?.totalTokenCount,
+      tokensUsed: result.usageMetadata?.totalTokenCount || 0,
       latencyMs: Date.now() - startTime,
     };
   } catch (error: any) {
@@ -304,8 +312,8 @@ export async function checkLLMHealth(): Promise<Record<LLMProvider, boolean>> {
           timeoutMs: 5000 
         });
         health.openai = true;
-      } catch (e) {
-        // Ignore
+      } catch (e: any) {
+        console.debug(`OpenAI health check failed: ${e.message}`);
       }
     })(),
     (async () => {
@@ -315,8 +323,8 @@ export async function checkLLMHealth(): Promise<Record<LLMProvider, boolean>> {
           timeoutMs: 5000 
         });
         health.claude = true;
-      } catch (e) {
-        // Ignore
+      } catch (e: any) {
+        console.debug(`Claude health check failed: ${e.message}`);
       }
     })(),
     (async () => {
@@ -326,8 +334,8 @@ export async function checkLLMHealth(): Promise<Record<LLMProvider, boolean>> {
           timeoutMs: 5000 
         });
         health.gemini = true;
-      } catch (e) {
-        // Ignore
+      } catch (e: any) {
+        console.debug(`Gemini health check failed: ${e.message}`);
       }
     })(),
   ];

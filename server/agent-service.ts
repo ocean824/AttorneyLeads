@@ -1,21 +1,25 @@
-import OpenAI from "openai";
 import type { AgentInteraction, ArrestRecord } from "@shared/schema";
 import { storage } from "./storage";
+import { getResponse, type LLMProvider, type LLMResponse } from "./llm/router";
 
-// Validate OpenAI environment variables
-function validateOpenAIConfig(): void {
-  if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-    console.warn("Warning: OpenAI AI Integrations not configured. Agent chat will fail until environment variables are set.");
+// Validate LLM environment variables
+function validateLLMConfig(): void {
+  const hasOpenAI = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const hasAnthropic = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  const hasGemini = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  
+  if (!hasOpenAI && !hasAnthropic && !hasGemini) {
+    console.warn("Warning: No LLM providers configured. Agent chat will fail until at least one provider is set up.");
+  } else {
+    const configured = [];
+    if (hasOpenAI) configured.push("OpenAI");
+    if (hasAnthropic) configured.push("Claude");
+    if (hasGemini) configured.push("Gemini");
+    console.log(`✓ LLM providers configured: ${configured.join(", ")}`);
   }
 }
 
-validateOpenAIConfig();
-
-// This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
-});
+validateLLMConfig();
 
 const SYSTEM_PROMPT = `You are an intelligent assistant for AttorneyLeads, a Florida arrest records platform for legal professionals.
 
@@ -109,22 +113,34 @@ export class AgentService {
     });
 
     try {
-      // Check if OpenAI is configured
-      if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-        throw new Error("OpenAI AI Integrations not configured. Please contact administrator.");
-      }
+      // Build prompt from messages (extract user message from last item)
+      const userPrompt = message;
+      const conversationContext = messages
+        .slice(1, -1) // Skip system prompt and current user message
+        .map(m => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      
+      const fullPrompt = conversationContext 
+        ? `Previous conversation:\n${conversationContext}\n\nUser: ${userPrompt}`
+        : userPrompt;
 
-      // Call OpenAI API
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini", // Using gpt-4o-mini for cost efficiency
-        messages,
-        max_completion_tokens: 2048,
-        temperature: 0.7
-      });
+      // Call Multi-LLM router with automatic fallback
+      // Tries OpenAI -> Claude -> Gemini in order
+      const fallbackOrder: LLMProvider[] = ['openai', 'claude', 'gemini'];
+      const llmResponse: LLMResponse = await getResponse(
+        fullPrompt,
+        SYSTEM_PROMPT,
+        fallbackOrder,
+        {
+          openai: { maxTokens: 2048, temperature: 0.7 },
+          claude: { maxTokens: 2048, temperature: 0.7 },
+          gemini: { maxTokens: 2048, temperature: 0.7 },
+        }
+      );
 
-      const assistantMessage = response.choices[0]?.message?.content || "I apologize, but I couldn't generate a response.";
-      const tokensUsed = response.usage?.total_tokens || 0;
+      const assistantMessage = llmResponse.content || "I apologize, but I couldn't generate a response.";
+      const tokensUsed = llmResponse.tokensUsed || 0;
+      const modelUsed = `${llmResponse.provider}/${llmResponse.model}`;
 
       // Store assistant response
       const assistantInteraction = await storage.createAgentInteraction({
@@ -133,10 +149,13 @@ export class AgentService {
         arrestRecordId: arrestRecordId || null,
         role: "assistant",
         message: assistantMessage,
-        model: "gpt-4o-mini",
+        model: modelUsed,
         tokensUsed,
         actionTaken: null,
-        actionResult: null
+        actionResult: JSON.stringify({ 
+          provider: llmResponse.provider, 
+          latencyMs: llmResponse.latencyMs 
+        })
       });
 
       return {
@@ -147,7 +166,7 @@ export class AgentService {
       };
 
     } catch (error: any) {
-      console.error("OpenAI API error:", error);
+      console.error("LLM API error:", error);
       
       // Store error in assistant interaction
       await storage.createAgentInteraction({
@@ -155,8 +174,8 @@ export class AgentService {
         userId,
         arrestRecordId: arrestRecordId || null,
         role: "assistant",
-        message: "I encountered an error processing your request. Please try again.",
-        model: "gpt-4o-mini",
+        message: "I encountered an error processing your request. All AI providers are currently unavailable. Please try again later.",
+        model: "error",
         tokensUsed: null,
         actionTaken: "error",
         actionResult: JSON.stringify({ error: error.message })

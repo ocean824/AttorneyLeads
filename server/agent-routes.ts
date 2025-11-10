@@ -3,6 +3,7 @@ import { agentService } from "./agent-service";
 import { chatMessageSchema } from "@shared/schema";
 import { storage } from "./storage";
 import { randomUUID } from "crypto";
+import { checkLLMHealth } from "./llm/router";
 
 // Authentication middleware
 function requireAuth(req: Request, res: Response, next: Function) {
@@ -134,6 +135,31 @@ export function registerAgentRoutes(app: Express): void {
       console.error("Clear session error:", error);
       res.status(500).json({ 
         error: "Failed to clear session",
+        details: error.message 
+      });
+    }
+  });
+
+  /**
+   * GET /api/agent/llm/health
+   * Check health status of all LLM providers
+   */
+  app.get("/api/agent/llm/health", requireAuth, async (req, res) => {
+    try {
+      const health = await checkLLMHealth();
+      const anyHealthy = Object.values(health).some(status => status);
+      
+      res.json({
+        healthy: anyHealthy,
+        providers: health,
+        message: anyHealthy 
+          ? "At least one LLM provider is available" 
+          : "All LLM providers are unavailable"
+      });
+    } catch (error: any) {
+      console.error("LLM health check error:", error);
+      res.status(500).json({ 
+        error: "Failed to check LLM health",
         details: error.message 
       });
     }
