@@ -14,7 +14,7 @@ import Analytics from "@/pages/analytics";
 import CRM from "@/pages/crm";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
-import AdminUsers from "@/pages/admin-users";
+import AdminPanel from "@/pages/admin";
 import Forgot from "@/pages/forgot";
 import Reset from "@/pages/reset";
 import TwoFA from "@/pages/2fa";
@@ -59,7 +59,7 @@ function Router() {
         <PrivateRoute><Devices /></PrivateRoute>
       </Route>
       <Route path="/admin/users" >
-        <PrivateRoute><AdminUsers /></PrivateRoute>
+        <PrivateRoute><AdminPanel /></PrivateRoute>
       </Route>
       
       <Route component={NotFound} />
