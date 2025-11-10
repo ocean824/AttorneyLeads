@@ -124,8 +124,10 @@ export interface IStorage {
   updateCourtDocket(id: string, updates: Partial<Omit<CourtDocket, "id" | "createdAt">>): Promise<CourtDocket | undefined>;
 
   // Agent Interactions
-  getAgentInteractions(sessionId?: string, arrestRecordId?: string): Promise<AgentInteraction[]>;
+  getAgentInteractions(sessionId?: string, arrestRecordId?: string, userId?: string): Promise<AgentInteraction[]>;
   createAgentInteraction(interaction: InsertAgentInteraction): Promise<AgentInteraction>;
+  deleteAgentInteractions(sessionId: string): Promise<number>;
+  getSessionOwner(sessionId: string): Promise<string | null>;
 
   // Delivery Logs
   getDeliveryLogs(filters?: { deliveryType?: string; status?: string }): Promise<DeliveryLog[]>;
@@ -675,13 +677,16 @@ export class DbStorage implements IStorage {
   }
 
   // Agent Interactions Methods (oldest first for chronological conversation)
-  async getAgentInteractions(sessionId?: string, arrestRecordId?: string): Promise<AgentInteraction[]> {
+  async getAgentInteractions(sessionId?: string, arrestRecordId?: string, userId?: string): Promise<AgentInteraction[]> {
     const conditions = [];
     if (sessionId) {
       conditions.push(eq(agentInteractions.sessionId, sessionId));
     }
     if (arrestRecordId) {
       conditions.push(eq(agentInteractions.arrestRecordId, arrestRecordId));
+    }
+    if (userId) {
+      conditions.push(eq(agentInteractions.userId, userId));
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
@@ -698,6 +703,22 @@ export class DbStorage implements IStorage {
       .values(interaction)
       .returning();
     return created;
+  }
+
+  async deleteAgentInteractions(sessionId: string): Promise<number> {
+    const result = await db
+      .delete(agentInteractions)
+      .where(eq(agentInteractions.sessionId, sessionId));
+    return result.rowCount || 0;
+  }
+
+  async getSessionOwner(sessionId: string): Promise<string | null> {
+    const [interaction] = await db
+      .select({ userId: agentInteractions.userId })
+      .from(agentInteractions)
+      .where(eq(agentInteractions.sessionId, sessionId))
+      .limit(1);
+    return interaction?.userId || null;
   }
 
   // Delivery Logs Methods

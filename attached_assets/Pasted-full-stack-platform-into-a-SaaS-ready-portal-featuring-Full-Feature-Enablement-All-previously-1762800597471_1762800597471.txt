@@ -1,0 +1,152 @@
+full-stack platform into a SaaS-ready portal, featuring:
+
+🔐 Full Feature Enablement
+
+All previously shipped features will now be merged + live by default inside your Replit-based AttorneyLeads app:
+
+✅ AI-enhanced Arrest Scraper
+
+✅ TOTP 2FA + Trust Device
+
+✅ AI Agent Assistant (internal + CRM)
+
+✅ Export to PDF/CSV
+
+✅ Charts + Trend Dashboard
+
+✅ Case Aggregation Layer
+
+✅ Identity Matching & Photo Logic
+
+✅ Multilingual Legal Prompt System
+
+✅ Weekly Scheduler + OpenAI Trainer
+
+✅ Fine-tuning CLI + Dataset Builder
+
+✅ CRM Delivery (Internal + External)
+
+🌐 SaaS Portal Conversion
+
+🔧 Built using:
+
+Frontend: React (Tailwind)
+
+Backend: Node.js (Express)
+
+Auth: Clerk.js-style or custom session middleware
+
+Payment: Stripe (test + live mode toggle)
+
+DB: PostgreSQL (Drizzle ORM)
+
+State Management: Zod + TypeScript types
+
+📦 Portal Features:
+Role	Features
+👤 Free User	Limited record view, export disabled, AI agent summary only
+🪪 Subscriber	Full record access, PDF/CSV export, AI assistant, CRM send
+🛡️ Admin	All access + billing dashboard + API tokens + user metrics
+🔁 Stripe Integration
+
+Plan tiers:
+
+Free
+
+Standard ($19/mo)
+
+Pro ($49/mo)
+
+Features:
+
+Billing portal
+
+Webhook listener (/webhooks/stripe)
+
+Subscription state injected to frontend
+
+Automatic access control update via webhook
+
+🔐 User table upgraded:
+
+is_admin, stripe_id, plan, active fields
+
+Secure route guards for /admin, /billing, /ai-train
+
+💸 Ready for Stripe test keys:
+
+Add to .env:
+
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+
+🧭 SaaS Pages:
+
+/login / /signup
+
+/dashboard
+
+/admin
+
+/billing
+
+/records
+
+/train-ai
+
+/export
+
+/notifications
+
+Packaging the full SaaS-Ready AttorneyLeads Portal for deployment now… 
+
+📦 Your AttorneyLeads SaaS Portal Deployment is now ready!
+
+✅ Download AttorneyLeads_SaaS_Portal_Deployment.zip
+🔑 Inside This Deployment:
+🔧 Core Functionality
+
+Full-feature AI Arrest Records Engine
+
+Multilingual Assistant
+
+CRM Integration
+
+Identity Matching & Case Aggregation
+
+Fine-Tuning Data Tools + Trainer CLI
+
+PDF/CSV Exports, Charts, Trends
+
+🏢 SaaS Infrastructure
+
+🔐 Secure Login / Signup / Billing Flows
+
+🧑‍⚖️ Role System: Admin, Subscriber, Free User
+
+💳 Stripe Integration (monthly plans)
+
+📊 Admin Dashboard with User + Revenue Stats
+
+🧠 AI Assistant Integrated into All Roles (restricted by tier)
+
+📁 Pages Included
+
+/login, /signup, /dashboard
+
+/records, /export, /billing, /train-ai
+
+/admin, /webhooks/stripe, /help
+
+📋 TO DEPLOY:
+
+Upload to Replit or Vercel
+
+Add Stripe keys to .env
+
+Run npm install && npm run dev
+
+Visit /admin and create your admin user
+
+Invite users or allow signup to test tiers

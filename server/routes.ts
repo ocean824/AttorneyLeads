@@ -16,6 +16,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { registerCrmRoutes } from "./crm-routes";
 import { registerAuthRoutes } from "./auth-routes";
+import { registerAgentRoutes } from "./agent-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth & Admin routes
@@ -23,6 +24,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register CRM routes
   registerCrmRoutes(app);
+  
+  // Register AI Agent routes
+  registerAgentRoutes(app);
   // Dashboard Stats
   app.get("/api/stats", async (req, res) => {
     try {
