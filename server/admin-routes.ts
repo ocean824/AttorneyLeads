@@ -19,6 +19,7 @@ export function registerAdminRoutes(app: Express) {
     const updates: any = {};
     if (role) updates.role = role;
     if (typeof isActive === "boolean") updates.isActive = isActive ? 1 : 0;
+    else if (typeof isActive === "number") updates.isActive = isActive;
     if (!Object.keys(updates).length) return res.status(400).json({ error: "No updates" });
     await db.update(users).set(updates).where(eq(users.id, id));
     res.json({ ok: true });

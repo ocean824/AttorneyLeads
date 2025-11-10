@@ -3,7 +3,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "./security/password";
 
 export function registerAdminBootstrap(app: Express) {
   app.post("/api/admin/bootstrap", async (_req: Request, res: Response) => {
@@ -13,7 +13,7 @@ export function registerAdminBootstrap(app: Express) {
     if (!email || !password) return res.status(400).json({ error: "Missing ADMIN_EMAIL or ADMIN_PASSWORD in secrets" });
 
     const existing = await db.query.users.findFirst({ where: eq(users.email, email) as any });
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
     if (!existing) {
       const [row] = await db.insert(users).values({
