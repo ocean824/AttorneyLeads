@@ -206,7 +206,7 @@ export class BillingService {
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       plan: params.plan,
-      subscriptionCurrentPeriodEnd: subscription.current_period_end as number,
+      subscriptionCurrentPeriodEnd: (subscription as any).current_period_end as number,
     });
     
     return {
@@ -288,7 +288,7 @@ export class BillingService {
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       plan,
-      subscriptionCurrentPeriodEnd: subscription.current_period_end as number,
+      subscriptionCurrentPeriodEnd: (subscription as any).current_period_end as number,
     });
     
     console.log(`✓ Updated subscription for user ${userId}: ${plan} (${subscription.status})`);

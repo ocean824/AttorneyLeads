@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Database, Activity, FileText, Copy, BarChart3, Users, Bot } from "lucide-react";
+import { Scale, Database, Activity, FileText, Copy, BarChart3, Users, Bot, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -67,6 +67,12 @@ export function Header() {
         <div className="flex items-center gap-2">
           {me ? (
             <>
+              <Link href="/billing">
+                <Button variant="ghost" className="gap-2" data-testid="link-billing">
+                  <CreditCard className="w-4 h-4" />
+                  Billing
+                </Button>
+              </Link>
               <Link href="/account/security">
                 <Button variant="outline" data-testid="link-account">Account</Button>
               </Link>

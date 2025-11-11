@@ -17,6 +17,7 @@ import Login from "@/pages/login";
 import AdminPanel from "@/pages/admin";
 import AdminCalendar from "@/pages/admin/calendar";
 import AgentPage from "@/pages/agent";
+import Billing from "@/pages/billing";
 import Forgot from "@/pages/forgot";
 import Reset from "@/pages/reset";
 import TwoFA from "@/pages/2fa";
@@ -59,6 +60,9 @@ function Router() {
       </Route>
       <Route path="/account/devices" >
         <PrivateRoute><Devices /></PrivateRoute>
+      </Route>
+      <Route path="/billing" >
+        <PrivateRoute><Billing /></PrivateRoute>
       </Route>
       <Route path="/admin/users" >
         <PrivateRoute><AdminPanel /></PrivateRoute>
