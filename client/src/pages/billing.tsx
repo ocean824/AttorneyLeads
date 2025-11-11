@@ -46,16 +46,16 @@ export default function Billing() {
       return response;
     },
     onSuccess: (data: any) => {
-      // Redirect to Stripe Checkout or use client secret for Stripe Elements
-      if (data.clientSecret) {
-        // For embedded checkout with Stripe Elements
-        // This would require Stripe Elements integration
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
         toast({
-          title: "Subscription Created",
-          description: "Please complete payment to activate your subscription.",
+          title: "Error",
+          description: "Failed to create checkout session",
+          variant: "destructive",
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/billing/subscription"] });
     },
     onError: (error: any) => {
       toast({

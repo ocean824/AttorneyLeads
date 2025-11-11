@@ -28,7 +28,7 @@ Do not make changes to the `scripts/dbReset.ts` file.
 - **Multi-LLM Fallback System**: Production-ready intelligent router supporting OpenAI (GPT-4o-mini), Anthropic (Claude Sonnet 4.5), and Google (Gemini 2.5 Flash). Automatic fallback on API failures or timeouts (>15s), with latency/token tracking and health monitoring at GET `/api/agent/llm/health`.
 - **Enhanced Scraper Engine**: Expanded database schema with new tables (`arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`), performance indexes, and Python retrieval modules for documents and court dockets with fuzzy matching and retry logic.
 - **Appointment Scheduling System**: Complete appointment booking integration with admin calendar management at `/admin/calendar` and embedded booking dialog in AI Agent chat. Features weekly recurring availability slots, timezone auto-detection, session linking, multi-step booking flow, and comprehensive CRUD API endpoints. Supports case type categorization, visitor contact management, and booking status tracking (confirmed/cancelled/completed/no_show).
-- **Billing Infrastructure (In Progress)**: Database schema extended with Stripe fields (`plan`, `stripeCustomerId`, `stripeSubscriptionId`, `subscriptionStatus`). Stripe service layer partially implemented; requires API keys (STRIPE_SECRET_KEY, VITE_STRIPE_PUBLIC_KEY) before production use.
+- **Stripe Billing Integration (Production-Ready)**: Complete 5-tier subscription billing with Stripe Checkout integration. Database schema includes Stripe fields (`plan`, `stripeCustomerId`, `stripeSubscriptionId`, `subscriptionStatus`, `subscriptionCurrentPeriodEnd`). Billing UI at `/billing` with pricing cards for Free, Basic ($29.95), Standard ($59.95), Pro ($89.95), and Elite ($189.95). Stripe webhook handler at POST `/api/billing/webhook` with signature verification for subscription lifecycle events. Customer Portal integration for self-service billing management. Requires Stripe product/price configuration in Stripe Dashboard (see STRIPE_SETUP.md).
 
 ### Data Models
 - **User Accounts**: `users`, `password_reset_tokens`, `user_backup_codes`, `user_trusted_devices`
@@ -46,6 +46,7 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - **Core Operations**: Stats, scrape management, record retrieval, export, deduplication, analytics.
 - **CRM**: Prospects, discovery, outreach, meetings, sheets sync.
 - **Appointments**: `/api/appointments/*` (availability, booking, admin slot CRUD, booking management).
+- **Billing**: `/api/billing/*` (plans, subscription status, checkout session, portal session, webhook).
 - **Observability**: `/healthz`, `/readyz`, `/metrics`.
 - **AI Agent**: `/api/agent/*` (chat, session management, LLM health check).
 
@@ -65,7 +66,7 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - **Calendly**: Automated meeting scheduling.
 - **Google Sheets API**: Bi-directional synchronization.
 - **Prometheus**: Metrics collection and monitoring.
-- **Stripe**: (In Progress) Subscription billing infrastructure.
+- **Stripe**: Complete subscription billing with 5-tier pricing. Requires STRIPE_SECRET_KEY, VITE_STRIPE_PUBLIC_KEY, and product price IDs (see STRIPE_SETUP.md).
 - **Twilio**: (Optional) SMS for OTP.
 - **SMTP Service**: (Optional) Email for password reset/OTP.
 

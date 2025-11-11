@@ -166,7 +166,7 @@ Response:
 ```
 
 ### POST `/api/billing/create-checkout-session`
-Creates a new subscription checkout session.
+Creates a new Stripe Checkout Session for subscription signup.
 
 Request:
 ```json
@@ -180,10 +180,12 @@ Request:
 Response:
 ```json
 {
-  "sessionId": "sub_xxxxxxxxxxxxx",
-  "clientSecret": "pi_xxxxxxxxxxxxx_secret_xxxxxxxxxxxxx"
+  "sessionId": "cs_test_xxxxxxxxxxxxx",
+  "url": "https://checkout.stripe.com/c/pay/cs_test_xxxxxxxxxxxxx"
 }
 ```
+
+The frontend should redirect to the `url` to complete payment on Stripe's hosted checkout page.
 
 ### POST `/api/billing/create-portal-session`
 Creates a Stripe Customer Portal session for managing subscriptions.

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import { billingService, SUBSCRIPTION_PLANS, type PlanTier } from "./billing/stripe-service";
 import { getStripeClient } from "./billing/stripe-service";
 import { z } from "zod";
@@ -37,14 +37,16 @@ router.post("/create-checkout-session", async (req, res) => {
 
     const { plan, successUrl, cancelUrl } = schema.parse(req.body);
 
-    const result = await billingService.createSubscription({
+    const result = await billingService.createCheckoutSession({
       userId: user.id,
       plan: plan as PlanTier,
+      successUrl,
+      cancelUrl,
     });
 
     res.json({
-      sessionId: result.subscriptionId,
-      clientSecret: result.clientSecret,
+      sessionId: result.sessionId,
+      url: result.url,
     });
   } catch (error: any) {
     console.error("Error creating checkout session:", error);
@@ -111,30 +113,33 @@ router.get("/subscription", async (req, res) => {
 
 /**
  * Stripe webhook handler
+ * IMPORTANT: This route must receive raw body for signature verification
+ * The raw body middleware must be applied before this route in the parent router
  */
-router.post("/webhook", async (req, res) => {
-  const stripe = getStripeClient();
-  const sig = req.headers["stripe-signature"];
-
-  if (!sig) {
-    return res.status(400).send("Missing stripe-signature header");
-  }
-
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
+router.post("/webhook", raw({ type: "application/json" }), async (req, res) => {
   try {
-    let event;
+    const stripe = getStripeClient();
+    const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (webhookSecret) {
-      // Verify webhook signature
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        webhookSecret
-      );
-    } else {
-      // For development/testing without webhook secret
-      event = req.body;
+    if (!webhookSecret) {
+      console.error("STRIPE_WEBHOOK_SECRET not configured - rejecting webhook");
+      return res.status(400).json({ error: "Webhook secret not configured" });
+    }
+
+    if (!sig) {
+      console.error("No stripe-signature header found");
+      return res.status(400).json({ error: "No signature header" });
+    }
+
+    let event;
+    try {
+      // req.body should be raw Buffer from raw() middleware
+      const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+      event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    } catch (err: any) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     // Handle the event

@@ -145,14 +145,16 @@ export class BillingService {
   }
 
   /**
-   * Create or update subscription
+   * Create Stripe Checkout Session for subscription
    */
-  async createSubscription(params: {
+  async createCheckoutSession(params: {
     userId: string;
     plan: PlanTier;
+    successUrl: string;
+    cancelUrl: string;
   }): Promise<{
-    subscriptionId: string;
-    clientSecret: string;
+    sessionId: string;
+    url: string;
   }> {
     const stripe = getStripeClient();
     const user = await storage.getUserById(params.userId);
@@ -173,45 +175,31 @@ export class BillingService {
       user.email.split('@')[0]
     );
     
-    // Cancel existing subscription if any
-    if (user.stripeSubscriptionId) {
-      try {
-        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
-      } catch (err) {
-        console.warn('Failed to cancel existing subscription:', err);
-      }
-    }
-    
-    // Create new subscription
-    const subscription = await stripe.subscriptions.create({
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      items: [{
+      mode: 'subscription',
+      line_items: [{
         price: planConfig.stripePriceId,
+        quantity: 1,
       }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
       metadata: {
         userId: params.userId,
         plan: params.plan,
       },
-    });
-    
-    // Extract payment intent from expanded invoice
-    const latestInvoice: any = subscription.latest_invoice;
-    const paymentIntent: any = latestInvoice?.payment_intent;
-    
-    // Update user record
-    await storage.updateUserStripeInfo(params.userId, {
-      stripeSubscriptionId: subscription.id,
-      subscriptionStatus: subscription.status,
-      plan: params.plan,
-      subscriptionCurrentPeriodEnd: (subscription as any).current_period_end as number,
+      subscription_data: {
+        metadata: {
+          userId: params.userId,
+          plan: params.plan,
+        },
+      },
     });
     
     return {
-      subscriptionId: subscription.id,
-      clientSecret: paymentIntent?.client_secret || '',
+      sessionId: session.id,
+      url: session.url!,
     };
   }
 
