@@ -7,6 +7,11 @@ A professional B2B web application designed to scrape Florida arrest records and
 I prefer detailed explanations.
 Do not make changes to the `scripts/dbReset.ts` file.
 
+## Recent Updates (November 2025)
+- **Schema Alignment (Nov 11, 2025)**: Fixed critical timestamp/integer mismatch in users table between development and production databases. Updated `shared/schema.ts` to use `timestamp()` for `lastLoginAt`, `createdAt`, `updatedAt` (matching production). All auth flows now use JavaScript `Date` objects instead of Unix timestamps. Migration completed via SQL `ALTER TABLE` with `to_timestamp()` conversion.
+- **Password Verification Fix (Nov 11, 2025)**: Restored bcrypt password hashing in `server/security/password.ts` (was incorrectly using custom scrypt). Now matches existing bcrypt hashes in database and aligns with security architecture documented in this file.
+- **Production Admin Account**: jarredstarman@gmail.com configured as admin with elite plan in both development and production databases. Login verified working in both environments.
+
 ## System Architecture
 
 ### Tech Stack
