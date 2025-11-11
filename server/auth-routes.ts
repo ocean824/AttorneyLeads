@@ -162,7 +162,18 @@ export function registerAuthRoutes(app: Express) {
   // login with enforcement + 2FA paths + trusted device check
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password } = loginSchema.parse(req.body);
+      const parsed = loginSchema.safeParse(req.body);
+      if (!parsed.success) {
+        // Extract first validation error for user-friendly message
+        const firstError = parsed.error.errors[0];
+        const field = firstError.path.join('.');
+        const message = firstError.message;
+        return res.status(400).json({ 
+          error: `${field}: ${message}` 
+        });
+      }
+      
+      const { email, password } = parsed.data;
       const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
       if (!user || !user.isActive) return res.status(401).json({ error: "Invalid credentials" });
       const ok = await verifyPassword(password, user.passwordHash);
@@ -220,7 +231,7 @@ export function registerAuthRoutes(app: Express) {
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
       res.json({ user: sanitize(user) });
     } catch (e: any) {
-      res.status(400).json({ error: e.message || "Invalid payload" });
+      res.status(500).json({ error: "An error occurred during login" });
     }
   });
 
