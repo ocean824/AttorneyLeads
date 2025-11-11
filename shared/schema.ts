@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, bigint, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, bigint, index, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -302,8 +302,8 @@ export const userBackupCodes = pgTable("user_backup_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   codeHash: varchar("code_hash", { length: 256 }).notNull(),
-  usedAt: integer("used_at"), // Unix timestamp (seconds)
-  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // User Trusted Devices Table (for "Trust this device" feature)
@@ -316,6 +316,15 @@ export const userTrustedDevices = pgTable("user_trusted_devices", {
   lastUsedAt: integer("last_used_at"), // Unix timestamp (seconds)
   createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 });
+
+// Express Session Table (managed by connect-pg-simple)
+export const session = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+}, (table) => ({
+  expireIdx: index("IDX_session_expire").on(table.expire),
+}));
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
