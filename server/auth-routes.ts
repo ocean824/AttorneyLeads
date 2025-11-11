@@ -132,7 +132,14 @@ export function registerAuthRoutes(app: Express) {
       // Auto-login the created user
       req.session.user = sanitize(user);
       
-      res.json({ user: sanitize(user) });
+      // CRITICAL: Save session before sending response
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        res.json({ user: sanitize(user) });
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create admin user" });
     }
@@ -356,7 +363,14 @@ export function registerAuthRoutes(app: Express) {
           // Trusted device + TOTP enabled → finalize session immediately
           await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
           req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
-          return res.json({ user: sanitize(user), trustedDevice: true });
+          // CRITICAL: Save session before sending response
+          return req.session.save((err) => {
+            if (err) {
+              console.error("Session save error:", err);
+              return res.status(500).json({ error: "Session save failed" });
+            }
+            res.json({ user: sanitize(user), trustedDevice: true });
+          });
         }
       }
 
@@ -394,7 +408,14 @@ export function registerAuthRoutes(app: Express) {
       // No 2FA required
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
-      res.json({ user: sanitize(user) });
+      // CRITICAL: Save session before sending response
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        res.json({ user: sanitize(user) });
+      });
     } catch (e: any) {
       console.error("Login error:", e);
       res.status(500).json({ error: "An error occurred during login" });
@@ -419,7 +440,14 @@ export function registerAuthRoutes(app: Express) {
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
-    res.json({ user: sanitize(user) });
+    // CRITICAL: Save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Session save failed" });
+      }
+      res.json({ user: sanitize(user) });
+    });
   });
 
   // ---------------------- TOTP Setup (for admin hard-gate and normal users) ----------------------
@@ -501,7 +529,14 @@ export function registerAuthRoutes(app: Express) {
     delete (req.session as any).pendingTotpSecret;
 
     const updatedUser = { ...user, totpSecretEnc: secretEnc, totpEnabled: 1 };
-    res.json({ user: sanitize(updatedUser) });
+    // CRITICAL: Save session before sending response (important for isPendingFlow case)
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Session save failed" });
+      }
+      res.json({ user: sanitize(updatedUser) });
+    });
   });
 
   // ---------------------- Backup codes ----------------------
@@ -547,7 +582,14 @@ export function registerAuthRoutes(app: Express) {
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
-    res.json({ user: sanitize(user) });
+    // CRITICAL: Save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Session save failed" });
+      }
+      res.json({ user: sanitize(user) });
+    });
   });
 
   // ---------------------- Fallback OTP (Email/SMS) ----------------------
@@ -612,7 +654,14 @@ export function registerAuthRoutes(app: Express) {
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     delete (req.session as any).pending2faOtp;
-    res.json({ user: sanitize(user) });
+    // CRITICAL: Save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Session save failed" });
+      }
+      res.json({ user: sanitize(user) });
+    });
   });
 
   // ---------------------- Admin: set phone ----------------------

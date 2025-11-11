@@ -17,6 +17,11 @@ export function setupSession(app: Express) {
 
   app.set("trust proxy", 1); // respect X-Forwarded-* in Replit/Proxies
 
+  // IMPORTANT: For local development (http://localhost), secure must be false
+  // For production (https://...), secure must be true
+  // NODE_ENV=production is the reliable indicator for this
+  const isProduction = process.env.NODE_ENV === "production";
+
   app.use(
     session({
       store: new PgStore({
@@ -32,7 +37,9 @@ export function setupSession(app: Express) {
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        // Only set secure in true production mode
+        // Local development (even if accessed via https) should use secure:false for testing
+        secure: isProduction,
         maxAge: Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 8), // 8h
       },
     }),

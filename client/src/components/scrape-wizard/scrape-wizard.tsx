@@ -154,15 +154,18 @@ export function ScrapeWizard({ onComplete }: { onComplete?: () => void }) {
                 {FLORIDA_COUNTIES.map((county) => (
                   <div
                     key={county}
-                    className="flex items-center space-x-2 p-3 rounded-md border hover-elevate active-elevate-2 cursor-pointer"
-                    onClick={() => toggleCounty(county)}
+                    className="flex items-center space-x-2 p-3 rounded-md border hover-elevate active-elevate-2"
                     data-testid={`checkbox-county-${county.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Checkbox
+                      id={`county-${county}`}
                       checked={selectedCounties.includes(county)}
                       onCheckedChange={() => toggleCounty(county)}
                     />
-                    <label className="text-sm font-medium cursor-pointer flex-1">
+                    <label 
+                      htmlFor={`county-${county}`}
+                      className="text-sm font-medium cursor-pointer flex-1"
+                    >
                       {county}
                     </label>
                   </div>
