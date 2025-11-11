@@ -11,7 +11,6 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Calendar, Clock, CheckCircle2, Loader2 } from "lucide-react";
-import { formatDate } from "date-fns";
 
 interface AppointmentBookingDialogProps {
   open: boolean;
@@ -56,7 +55,7 @@ export function AppointmentBookingDialog({
     dayOfWeek: number;
     slots: AvailableSlot[];
   }>({
-    queryKey: ["/api/appointments/availability", selectedDate],
+    queryKey: [`/api/appointments/availability?date=${selectedDate}`],
     enabled: open && !!selectedDate,
   });
 
