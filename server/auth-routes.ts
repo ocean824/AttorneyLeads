@@ -1,7 +1,7 @@
 
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { and, eq, isNull, lt, gt } from "drizzle-orm";
+import { and, eq, isNull, lt, gt, sql } from "drizzle-orm";
 import {
   users,
   loginSchema,
@@ -12,6 +12,7 @@ import {
   passwordResetTokens,
   userBackupCodes,
   userTrustedDevices,
+  emergencyResetLog,
 } from "@shared/schema";
 import { hashPassword, verifyPassword } from "./security/password";
 import { encryptGCM, decryptGCM } from "./security/crypto";
@@ -139,8 +140,8 @@ export function registerAuthRoutes(app: Express) {
 
   // Emergency Admin Password Reset (Production-Only)
   // SECURITY: Only enable in production emergencies via ADMIN_OVERRIDE_SECRET env var
-  // Self-destructs after one successful use by clearing the secret requirement
-  let resetUsed = false;
+  // ⚠️ WARNING: This is a powerful emergency endpoint. Use only when locked out of production.
+  // Recommendation: Set secret, use once, then immediately remove secret from environment.
   app.post("/api/internal/admin-password-reset", async (req, res) => {
     try {
       // Guard 1: Check if override secret is set in environment
@@ -149,15 +150,55 @@ export function registerAuthRoutes(app: Express) {
         return res.status(404).json({ error: "Endpoint not available" });
       }
 
-      // Guard 2: Check if already used (self-destruct)
-      if (resetUsed) {
-        return res.status(403).json({ error: "Reset already used. Set new ADMIN_OVERRIDE_SECRET to reset again." });
+      // Guard 2: Validate override secret from request (constant-time comparison)
+      const { secret, email, newPassword } = req.body;
+      if (!secret || typeof secret !== 'string') {
+        console.warn("[SECURITY] Admin password reset attempted without secret");
+        return res.status(403).json({ error: "Invalid request" });
       }
 
-      // Guard 3: Validate override secret from request
-      const { secret, email, newPassword } = req.body;
-      if (secret !== overrideSecret) {
+      // Constant-time comparison to prevent timing attacks
+      // Use crypto.timingSafeEqual which is guaranteed timing-safe
+      let secretMatch = false;
+      try {
+        const secretBuffer = Buffer.from(secret);
+        const expectedBuffer = Buffer.from(overrideSecret);
+        // timingSafeEqual requires equal-length buffers, so check length first
+        if (secretBuffer.length === expectedBuffer.length) {
+          const crypto = await import('crypto');
+          secretMatch = crypto.timingSafeEqual(secretBuffer, expectedBuffer);
+        }
+      } catch (error) {
+        secretMatch = false; // Length mismatch or comparison failed
+      }
+
+      if (!secretMatch) {
+        console.warn("[SECURITY] Admin password reset attempted with invalid secret", {
+          email: email || "not provided",
+          timestamp: new Date().toISOString()
+        });
         return res.status(403).json({ error: "Invalid override secret" });
+      }
+
+      // Hash the secret to check if it's been used before (durable one-time use guard)
+      const secretHash = createHash("sha256").update(secret).digest("hex");
+
+      // Check if this secret has already been used
+      const existingUse = await db.select()
+        .from(emergencyResetLog)
+        .where(eq(emergencyResetLog.secretHash, secretHash))
+        .limit(1);
+
+      if (existingUse.length > 0) {
+        console.warn("[SECURITY] Emergency password reset attempted with already-used secret", {
+          email: email || "not provided",
+          timestamp: new Date().toISOString(),
+          previousUse: existingUse[0].resetAt
+        });
+        return res.status(403).json({ 
+          error: "This emergency secret has already been used. Generate and set a new ADMIN_OVERRIDE_SECRET to perform another reset.",
+          usedAt: existingUse[0].resetAt
+        });
       }
 
       // Validate inputs
@@ -175,35 +216,86 @@ export function registerAuthRoutes(app: Express) {
         .limit(1);
 
       if (!admin) {
+        console.warn("[SECURITY] Admin password reset attempted for non-existent admin", {
+          email,
+          timestamp: new Date().toISOString()
+        });
         return res.status(404).json({ error: "Admin user not found" });
       }
 
       // Hash new password
       const passwordHash = await hashPassword(newPassword);
 
-      // Update password through ORM (for auditing)
-      await db.update(users)
-        .set({ 
-          passwordHash,
-          updatedAt: new Date()
-        })
-        .where(eq(users.id, admin.id));
+      // Execute all database operations in transaction for atomicity
+      try {
+        await db.transaction(async (tx) => {
+          // Update password through ORM (for auditing)
+          await tx.update(users)
+            .set({ 
+              passwordHash,
+              updatedAt: new Date()
+            })
+            .where(eq(users.id, admin.id));
+
+          // Record this secret as used (prevents replay)
+          const [logEntry] = await tx.insert(emergencyResetLog)
+            .values({
+              secretHash,
+              adminId: admin.id
+            })
+            .returning();
+
+          // Log the password reset operation
+          console.warn("[SECURITY] Admin password was reset via emergency endpoint", {
+            logId: logEntry.id,
+            adminId: admin.id,
+            email: admin.email,
+            timestamp: new Date().toISOString(),
+            warning: "This secret is now permanently burned. Generate a new ADMIN_OVERRIDE_SECRET for future use."
+          });
+        });
+      } catch (txError: any) {
+        console.error("[SECURITY] Emergency reset transaction failed", {
+          error: txError.message,
+          adminId: admin.id
+        });
+        throw new Error("Failed to complete emergency reset transaction");
+      }
 
       // Clear all active sessions for this user (security)
-      // Note: This will force re-login with new password
-      if (req.session?.user?.id === admin.id) {
+      // Note: Express-session stores sessions in the database 'session' table
+      // We need to manually clear sessions for this user
+      try {
+        // Execute raw SQL to delete all sessions for this user
+        // The session table stores data as JSON in the 'sess' column
+        await db.execute(sql`
+          DELETE FROM session 
+          WHERE sess::text LIKE ${`%"id":"${admin.id}"%`}
+        `);
+        console.log("[SECURITY] Cleared all active sessions for admin user", {
+          adminId: admin.id
+        });
+      } catch (sessionError) {
+        console.error("[SECURITY] Failed to clear admin sessions (non-critical)", sessionError);
+        // Non-critical: User can still change password via normal flow
+      }
+
+      // Destroy current request session if it exists
+      if (req.session?.user) {
         req.session.destroy(() => {});
       }
 
-      // Self-destruct: Mark as used
-      resetUsed = true;
-
       res.json({ 
         success: true, 
-        message: "Admin password reset successfully. This endpoint is now disabled. Remove ADMIN_OVERRIDE_SECRET from environment."
+        message: "Admin password reset successfully. IMMEDIATELY remove ADMIN_OVERRIDE_SECRET from environment and rotate to a new value for future use.",
+        warning: "All active admin sessions have been terminated. Please log in with the new password."
       });
 
     } catch (error: any) {
+      console.error("[SECURITY] Admin password reset failed", {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
       res.status(500).json({ error: error.message || "Failed to reset admin password" });
     }
   });
@@ -449,7 +541,7 @@ export function registerAuthRoutes(app: Express) {
     if (!entry || (entry as any).usedAt) return res.status(401).json({ error: "Invalid backup code" });
 
     // consume
-    await db.update(userBackupCodes).set({ usedAt: unixTimestamp() }).where(eq(userBackupCodes.id, entry.id));
+    await db.update(userBackupCodes).set({ usedAt: new Date() }).where(eq(userBackupCodes.id, entry.id));
 
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));

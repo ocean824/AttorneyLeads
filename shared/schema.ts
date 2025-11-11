@@ -326,6 +326,14 @@ export const session = pgTable("session", {
   expireIdx: index("IDX_session_expire").on(table.expire),
 }));
 
+// Emergency Admin Reset Log (for one-time-use secret tracking)
+export const emergencyResetLog = pgTable("emergency_reset_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  secretHash: varchar("secret_hash", { length: 256 }).notNull().unique(),
+  adminId: varchar("admin_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  resetAt: timestamp("reset_at").defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
