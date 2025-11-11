@@ -30,7 +30,7 @@ export const arrestRecords = pgTable("arrest_records", {
   chargeCategories: text("charge_categories"), // JSON array of charge classifications
   normalizedCharges: text("normalized_charges"), // AI-standardized charge text
   riskLevel: text("risk_level"), // low, medium, high
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Scrape Jobs Table
@@ -42,8 +42,8 @@ export const scrapeJobs = pgTable("scrape_jobs", {
   recordsFound: integer("records_found").default(0).notNull(),
   aiEnhanced: integer("ai_enhanced").default(1).notNull(), // 0 = false, 1 = true
   aiProcessed: integer("ai_processed").default(0).notNull(), // Count of AI-enhanced records
-  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
 });
 
@@ -51,7 +51,7 @@ export const scrapeJobs = pgTable("scrape_jobs", {
 export const crmSyncLog = pgTable("crm_sync_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   recordCount: integer("record_count").notNull(),
-  syncDate: timestamp("sync_date", { withTimezone: true }).defaultNow().notNull(),
+  syncDate: timestamp("sync_date").defaultNow().notNull(),
   crmType: text("crm_type"), // csv, salesforce, hubspot, etc.
   status: text("status").notNull(), // success, failed
   errorMessage: text("error_message"),
@@ -65,8 +65,8 @@ export const duplicateCandidates = pgTable("duplicate_candidates", {
   confidenceScore: integer("confidence_score").notNull(), // 0-100
   matchReasons: text("match_reasons").notNull(), // JSON array of match factors
   status: text("status").notNull().default("pending"), // pending, merged, dismissed
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Insert Schemas
@@ -135,8 +135,8 @@ export const crmProspects = pgTable("crm_prospects", {
   status: text("status").notNull().default("new"), // new, contacted, qualified, converted, rejected
   tags: text("tags"), // JSON array of tags
   notes: text("notes"),
-  lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  lastContactedAt: timestamp("last_contacted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Outreach Campaigns Table
@@ -147,7 +147,7 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
   status: text("status").notNull().default("draft"), // draft, active, paused, completed
   sentCount: integer("sent_count").default(0).notNull(),
   responseCount: integer("response_count").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Scheduled Meetings Table (Calendly integration)
@@ -158,11 +158,11 @@ export const scheduledMeetings = pgTable("scheduled_meetings", {
   prospectName: text("prospect_name").notNull(),
   meetingType: text("meeting_type").notNull().default("demo"), // demo, consultation, follow_up
   calendlyEventUri: text("calendly_event_uri"), // Calendly event ID
-  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
   status: text("status").notNull().default("scheduled"), // scheduled, completed, cancelled, no_show
   meetingUrl: text("meeting_url"), // Zoom/Google Meet link
   notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Insert Schemas for CRM tables
@@ -271,9 +271,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: varchar("role", { length: 20 }).notNull().default("user"), // 'user' | 'admin'
   isActive: integer("is_active").notNull().default(1),
-  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   // 2FA columns
   totpEnabled: integer("totp_enabled").notNull().default(0), // 0 = disabled, 1 = enabled
   totpSecretEnc: text("totp_secret_enc"), // AES-GCM encrypted TOTP secret
@@ -292,9 +292,9 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 256 }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  usedAt: timestamp("used_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // User Backup Codes Table (for 2FA recovery)
@@ -302,8 +302,8 @@ export const userBackupCodes = pgTable("user_backup_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   codeHash: varchar("code_hash", { length: 256 }).notNull(),
-  usedAt: timestamp("used_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // User Trusted Devices Table (for "Trust this device" feature)
@@ -321,7 +321,7 @@ export const userTrustedDevices = pgTable("user_trusted_devices", {
 export const session = pgTable("session", {
   sid: varchar("sid").primaryKey(),
   sess: json("sess").notNull(),
-  expire: timestamp("expire", { withTimezone: true }).notNull(),
+  expire: timestamp("expire").notNull(),
 }, (table) => ({
   expireIdx: index("IDX_session_expire").on(table.expire),
 }));
@@ -379,11 +379,11 @@ export const arrestDocuments = pgTable("arrest_documents", {
   verificationStatus: text("verification_status").notNull().default("pending"), // pending, verified, mismatch
   verificationNotes: text("verification_notes"), // AI verification details
   retryCount: integer("retry_count").default(0).notNull(),
-  lastRetryAt: timestamp("last_retry_at", { withTimezone: true }),
+  lastRetryAt: timestamp("last_retry_at"),
   errorMessage: text("error_message"),
   metadata: text("metadata"), // JSON with additional document info
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   arrestRecordIdIdx: index("arrest_documents_arrest_record_id_idx").on(table.arrestRecordId),
   retrievalStatusIdx: index("arrest_documents_retrieval_status_idx").on(table.retrievalStatus),
@@ -406,10 +406,10 @@ export const courtDockets = pgTable("court_dockets", {
   matchConfidence: integer("match_confidence"), // 0-100 confidence score
   matchReason: text("match_reason"), // Explanation of match logic
   retryCount: integer("retry_count").default(0).notNull(),
-  lastRetryAt: timestamp("last_retry_at", { withTimezone: true }),
+  lastRetryAt: timestamp("last_retry_at"),
   errorMessage: text("error_message"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   arrestRecordIdIdx: index("court_dockets_arrest_record_id_idx").on(table.arrestRecordId),
   retrievalStatusIdx: index("court_dockets_retrieval_status_idx").on(table.retrievalStatus),
@@ -428,7 +428,7 @@ export const agentInteractions = pgTable("agent_interactions", {
   tokensUsed: integer("tokens_used"),
   actionTaken: text("action_taken"), // crm_delivery, code_explanation, verification_check
   actionResult: text("action_result"), // JSON with action outcome
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   sessionIdIdx: index("agent_interactions_session_id_idx").on(table.sessionId),
   userIdIdx: index("agent_interactions_user_id_idx").on(table.userId),
@@ -447,12 +447,12 @@ export const deliveryLogs = pgTable("delivery_logs", {
   responseBody: text("response_body"), // Response from webhook
   retryCount: integer("retry_count").default(0).notNull(),
   maxRetries: integer("max_retries").default(3).notNull(),
-  lastRetryAt: timestamp("last_retry_at", { withTimezone: true }),
+  lastRetryAt: timestamp("last_retry_at"),
   errorMessage: text("error_message"),
   triggeredBy: varchar("triggered_by"), // user_id who triggered delivery
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
 }, (table) => ({
   deliveryTypeIdx: index("delivery_logs_delivery_type_idx").on(table.deliveryType),
   statusIdx: index("delivery_logs_status_idx").on(table.status),
@@ -470,10 +470,10 @@ export const notificationHistory = pgTable("notification_history", {
   templateUsed: text("template_used"), // Template identifier
   metadata: text("metadata"), // JSON with notification context (arrest count, date range, etc.)
   status: text("status").notNull().default("pending"), // pending, sent, failed
-  sentAt: timestamp("sent_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at"),
   errorMessage: text("error_message"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   notificationTypeIdx: index("notification_history_notification_type_idx").on(table.notificationType),
   channelIdx: index("notification_history_channel_idx").on(table.channel),
@@ -522,8 +522,8 @@ export const appointmentSlots = pgTable("appointment_slots", {
   timezone: varchar("timezone", { length: 100 }).notNull().default("America/New_York"), // IANA timezone
   isActive: integer("is_active").notNull().default(1), // 0 = disabled, 1 = enabled
   maxBookings: integer("max_bookings").notNull().default(1), // Max concurrent bookings per slot
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Appointment Bookings Table - Visitor bookings
@@ -543,8 +543,8 @@ export const appointmentBookings = pgTable("appointment_bookings", {
   reminderSent: integer("reminder_sent").notNull().default(0), // 0 = not sent, 1 = sent
   sessionId: varchar("session_id", { length: 255 }), // Link to chat session
   arrestRecordId: varchar("arrest_record_id", { length: 255 }).references(() => arrestRecords.id, { onDelete: "set null" }), // Optional link to arrest record
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   dateIdx: index("appointment_bookings_date_idx").on(table.appointmentDate),
   statusIdx: index("appointment_bookings_status_idx").on(table.status),
