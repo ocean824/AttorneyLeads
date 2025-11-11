@@ -74,7 +74,7 @@ export function getStripeClient(): Stripe {
     }
     
     stripeClient = new Stripe(secretKey, {
-      apiVersion: "2023-10-16",
+      apiVersion: "2025-10-29.clover",
     });
   }
   return stripeClient;
@@ -197,20 +197,21 @@ export class BillingService {
       },
     });
     
-    const invoice = subscription.latest_invoice as Stripe.Invoice;
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
+    // Extract payment intent from expanded invoice
+    const latestInvoice: any = subscription.latest_invoice;
+    const paymentIntent: any = latestInvoice?.payment_intent;
     
     // Update user record
     await storage.updateUserStripeInfo(params.userId, {
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       plan: params.plan,
-      subscriptionCurrentPeriodEnd: subscription.current_period_end,
+      subscriptionCurrentPeriodEnd: subscription.current_period_end as number,
     });
     
     return {
       subscriptionId: subscription.id,
-      clientSecret: paymentIntent.client_secret!,
+      clientSecret: paymentIntent?.client_secret || '',
     };
   }
 
@@ -287,7 +288,7 @@ export class BillingService {
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
       plan,
-      subscriptionCurrentPeriodEnd: subscription.current_period_end,
+      subscriptionCurrentPeriodEnd: subscription.current_period_end as number,
     });
     
     console.log(`✓ Updated subscription for user ${userId}: ${plan} (${subscription.status})`);
