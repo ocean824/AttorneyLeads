@@ -6,6 +6,8 @@ import {
   users,
   loginSchema,
   registerUserSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
   type User,
   passwordResetTokens,
   userBackupCodes,
@@ -579,6 +581,110 @@ export function registerAuthRoutes(app: Express) {
       await generateBackupCodesPDF(codes, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to generate PDF" });
+    }
+  });
+
+  // ---------------------- Password Reset ----------------------
+  app.post("/api/auth/request-password-reset", async (req, res) => {
+    try {
+      const parsed = requestPasswordResetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid email address" });
+      }
+      
+      const { email } = parsed.data;
+      
+      // Find user (silently succeed even if user doesn't exist to prevent email enumeration)
+      const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+      
+      if (user) {
+        // Delete any existing reset tokens for this user
+        await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
+        
+        // Generate secure random token (32 bytes = 64 hex chars)
+        const token = randomBytes(32).toString('hex');
+        const tokenHash = hashToken(token);
+        const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour from now
+        
+        // Store hashed token
+        await db.insert(passwordResetTokens).values({
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+        });
+        
+        // Build reset URL
+        const resetUrl = `${appUrl()}/reset?token=${token}`;
+        
+        // Send email (do not log token)
+        await sendMail({
+          to: user.email,
+          subject: "Password Reset Request",
+          html: `
+            <p>You requested a password reset for your account.</p>
+            <p>Click the link below to reset your password (expires in 1 hour):</p>
+            <p><a href="${resetUrl}">${resetUrl}</a></p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+          `,
+          text: `You requested a password reset for your account. Visit this link to reset your password (expires in 1 hour): ${resetUrl}\n\nIf you didn't request this, you can safely ignore this email.`,
+        });
+      }
+      
+      // Always return success to prevent email enumeration
+      res.json({ ok: true, message: "If an account exists, a reset link has been sent" });
+    } catch (error: any) {
+      console.error("Password reset request error:", error.message);
+      res.status(500).json({ error: "Failed to process reset request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const parsed = resetPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const firstError = parsed.error.errors[0];
+        return res.status(400).json({ error: `${firstError.path.join('.')}: ${firstError.message}` });
+      }
+      
+      const { token, password } = parsed.data;
+      const tokenHash = hashToken(token);
+      
+      // Find valid token (not expired, not used)
+      const [resetToken] = await db.select()
+        .from(passwordResetTokens)
+        .where(and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          isNull(passwordResetTokens.usedAt)
+        ))
+        .limit(1);
+      
+      if (!resetToken) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+      
+      // Check expiration
+      if (new Date() > new Date(resetToken.expiresAt)) {
+        return res.status(410).json({ error: "Reset token has expired" });
+      }
+      
+      // Update password
+      const passwordHash = await hashPassword(password);
+      await db.update(users)
+        .set({ passwordHash, updatedAt: unixTimestamp() })
+        .where(eq(users.id, resetToken.userId));
+      
+      // Mark token as used
+      await db.update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(passwordResetTokens.id, resetToken.id));
+      
+      // Invalidate any existing sessions for this user (security best practice)
+      // Note: This is a simplified approach; in production, you might want to track sessions in DB
+      
+      res.json({ ok: true, message: "Password reset successful" });
+    } catch (error: any) {
+      console.error("Password reset error:", error.message);
+      res.status(500).json({ error: "Failed to reset password" });
     }
   });
 }

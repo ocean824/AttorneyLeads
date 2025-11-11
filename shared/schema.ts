@@ -292,9 +292,9 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   tokenHash: varchar("token_hash", { length: 256 }).notNull(),
-  expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
-  usedAt: integer("used_at"), // Unix timestamp (seconds)
-  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // User Backup Codes Table (for 2FA recovery)
@@ -341,8 +341,19 @@ export const registerUserSchema = z.object({
   role: z.enum(["user", "admin"]).default("user"),
 });
 
+export const requestPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterUserRequest = z.infer<typeof registerUserSchema>;
+export type RequestPasswordResetRequest = z.infer<typeof requestPasswordResetSchema>;
+export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;
 
 // ===================== ENHANCED SCRAPER TABLES =====================
 
