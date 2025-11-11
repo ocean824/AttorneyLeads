@@ -191,7 +191,7 @@ export function registerAuthRoutes(app: Express) {
         const isTrusted = await checkTrustedDevice(user.id, req.headers.cookie);
         if (isTrusted) {
           // Trusted device + TOTP enabled → finalize session immediately
-          await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
+          await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
           req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
           return res.json({ user: sanitize(user), trustedDevice: true });
         }
@@ -229,7 +229,7 @@ export function registerAuthRoutes(app: Express) {
       }
 
       // No 2FA required
-      await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
+      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
       res.json({ user: sanitize(user) });
     } catch (e: any) {
@@ -252,7 +252,7 @@ export function registerAuthRoutes(app: Express) {
     const ok = verifyTotp(token, secret, 1);
     if (!ok) return res.status(401).json({ error: "Invalid code" });
 
-    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     res.json({ user: sanitize(user) });
@@ -326,7 +326,7 @@ export function registerAuthRoutes(app: Express) {
     await db.update(users).set({
       totpSecretEnc: secretEnc,
       totpEnabled: 1,
-      lastLoginAt: unixTimestamp(),
+      lastLoginAt: new Date(),
     }).where(eq(users.id, user.id));
 
     // If pending flow (admin hard-gate), complete login session
@@ -380,7 +380,7 @@ export function registerAuthRoutes(app: Express) {
     await db.update(userBackupCodes).set({ usedAt: unixTimestamp() }).where(eq(userBackupCodes.id, entry.id));
 
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
-    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     res.json({ user: sanitize(user) });
@@ -444,7 +444,7 @@ export function registerAuthRoutes(app: Express) {
     if (hashToken(code) !== otp.hash) return res.status(401).json({ error: "Invalid code" });
 
     const [user] = await db.select().from(users).where(eq(users.id, pending.userId));
-    await db.update(users).set({ lastLoginAt: unixTimestamp() }).where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
     delete (req.session as any).pending2fa;
     delete (req.session as any).pending2faOtp;
@@ -670,7 +670,7 @@ export function registerAuthRoutes(app: Express) {
       // Update password
       const passwordHash = await hashPassword(password);
       await db.update(users)
-        .set({ passwordHash, updatedAt: unixTimestamp() })
+        .set({ passwordHash, updatedAt: new Date() })
         .where(eq(users.id, resetToken.userId));
       
       // Mark token as used

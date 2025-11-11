@@ -271,9 +271,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: varchar("role", { length: 20 }).notNull().default("user"), // 'user' | 'admin'
   isActive: integer("is_active").notNull().default(1),
-  lastLoginAt: integer("last_login_at"), // Unix timestamp (seconds)
-  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
-  updatedAt: integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   // 2FA columns
   totpEnabled: integer("totp_enabled").notNull().default(0), // 0 = disabled, 1 = enabled
   totpSecretEnc: text("totp_secret_enc"), // AES-GCM encrypted TOTP secret
