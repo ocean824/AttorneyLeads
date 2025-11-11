@@ -27,12 +27,14 @@ Do not make changes to the `scripts/dbReset.ts` file.
 - **AI Agent Assistant**: Production-ready conversational interface with session management, contextual arrest record integration, and secure API endpoints. Includes advanced chat UI with optimistic updates, error recovery, and session persistence.
 - **Multi-LLM Fallback System**: Production-ready intelligent router supporting OpenAI (GPT-4o-mini), Anthropic (Claude Sonnet 4.5), and Google (Gemini 2.5 Flash). Automatic fallback on API failures or timeouts (>15s), with latency/token tracking and health monitoring at GET `/api/agent/llm/health`.
 - **Enhanced Scraper Engine**: Expanded database schema with new tables (`arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`), performance indexes, and Python retrieval modules for documents and court dockets with fuzzy matching and retry logic.
-- **Billing Infrastructure (In Progress)**: Database schema extended with Stripe fields (`plan`, `stripeCustomerId`, `stripeSubscriptionId`, `subscriptionStatus`). Stripe service layer partially implemented; requires storage interface completion before production use.
+- **Appointment Scheduling System**: Complete appointment booking integration with admin calendar management at `/admin/calendar` and embedded booking dialog in AI Agent chat. Features weekly recurring availability slots, timezone auto-detection, session linking, multi-step booking flow, and comprehensive CRUD API endpoints. Supports case type categorization, visitor contact management, and booking status tracking (confirmed/cancelled/completed/no_show).
+- **Billing Infrastructure (In Progress)**: Database schema extended with Stripe fields (`plan`, `stripeCustomerId`, `stripeSubscriptionId`, `subscriptionStatus`). Stripe service layer partially implemented; requires API keys (STRIPE_SECRET_KEY, VITE_STRIPE_PUBLIC_KEY) before production use.
 
 ### Data Models
 - **User Accounts**: `users`, `password_reset_tokens`, `user_backup_codes`, `user_trusted_devices`
 - **Arrest Records**: `ArrestRecord`, `ScrapeJob`, `CRMSyncLog`, `DuplicateCandidate`
 - **CRM**: `CrmProspect`, `OutreachCampaign`, `ScheduledMeeting`
+- **Appointments**: `appointment_slots`, `appointment_bookings`
 - **AI/Scraper Enhancements**: `arrest_documents`, `court_dockets`, `agent_interactions`, `delivery_logs`, `notification_history`
 
 ### Design Guidelines
@@ -43,6 +45,7 @@ The application follows a professional B2B design inspired by Carbon Design Syst
 - **Admin Panel**: `/api/admin/*` (user management, bootstrap)
 - **Core Operations**: Stats, scrape management, record retrieval, export, deduplication, analytics.
 - **CRM**: Prospects, discovery, outreach, meetings, sheets sync.
+- **Appointments**: `/api/appointments/*` (availability, booking, admin slot CRUD, booking management).
 - **Observability**: `/healthz`, `/readyz`, `/metrics`.
 - **AI Agent**: `/api/agent/*` (chat, session management, LLM health check).
 
