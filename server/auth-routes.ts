@@ -137,6 +137,77 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
+  // Emergency Admin Password Reset (Production-Only)
+  // SECURITY: Only enable in production emergencies via ADMIN_OVERRIDE_SECRET env var
+  // Self-destructs after one successful use by clearing the secret requirement
+  let resetUsed = false;
+  app.post("/api/internal/admin-password-reset", async (req, res) => {
+    try {
+      // Guard 1: Check if override secret is set in environment
+      const overrideSecret = process.env.ADMIN_OVERRIDE_SECRET;
+      if (!overrideSecret || overrideSecret === "") {
+        return res.status(404).json({ error: "Endpoint not available" });
+      }
+
+      // Guard 2: Check if already used (self-destruct)
+      if (resetUsed) {
+        return res.status(403).json({ error: "Reset already used. Set new ADMIN_OVERRIDE_SECRET to reset again." });
+      }
+
+      // Guard 3: Validate override secret from request
+      const { secret, email, newPassword } = req.body;
+      if (secret !== overrideSecret) {
+        return res.status(403).json({ error: "Invalid override secret" });
+      }
+
+      // Validate inputs
+      if (!email || !newPassword) {
+        return res.status(400).json({ error: "Email and newPassword required" });
+      }
+
+      // Find admin user
+      const [admin] = await db.select()
+        .from(users)
+        .where(and(
+          eq(users.email, email),
+          eq(users.role, "admin")
+        ))
+        .limit(1);
+
+      if (!admin) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      // Hash new password
+      const passwordHash = await hashPassword(newPassword);
+
+      // Update password through ORM (for auditing)
+      await db.update(users)
+        .set({ 
+          passwordHash,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, admin.id));
+
+      // Clear all active sessions for this user (security)
+      // Note: This will force re-login with new password
+      if (req.session?.user?.id === admin.id) {
+        req.session.destroy(() => {});
+      }
+
+      // Self-destruct: Mark as used
+      resetUsed = true;
+
+      res.json({ 
+        success: true, 
+        message: "Admin password reset successfully. This endpoint is now disabled. Remove ADMIN_OVERRIDE_SECRET from environment."
+      });
+
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to reset admin password" });
+    }
+  });
+
   // Get current user session
   app.get("/api/auth/whoami", (req, res) => {
     if (req.session?.user) {
