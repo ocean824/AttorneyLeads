@@ -233,6 +233,7 @@ export function registerAuthRoutes(app: Express) {
       req.session.user = { id: user.id, email: user.email, role: (user.role as any) || "user" };
       res.json({ user: sanitize(user) });
     } catch (e: any) {
+      console.error("Login error:", e);
       res.status(500).json({ error: "An error occurred during login" });
     }
   });
