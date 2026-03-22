@@ -8,6 +8,7 @@ import { registerDashboardGuard } from "./middleware/protectDashboard";
 import { registerObservabilityRoutes } from "./observability";
 import { registerAdminRoutes } from "./admin-routes";
 import { registerAdminBootstrap } from "./admin-bootstrap";
+import { registerPublicInfoRoutes } from "./public-info-routes";
 import { logger } from "./logger";
 
 const app = express();
@@ -52,7 +53,10 @@ registerObservabilityRoutes(app);
     // Register admin routes and bootstrap
     registerAdminRoutes(app);
     registerAdminBootstrap(app);
-    
+
+    // Register public info verifier routes (/api/public-info/*)
+    registerPublicInfoRoutes(app);
+
     // Register /api routes and get the underlying HTTP server
     const server = await registerRoutes(app);
 

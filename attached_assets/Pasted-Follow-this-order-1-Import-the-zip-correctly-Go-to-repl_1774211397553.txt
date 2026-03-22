@@ -1,0 +1,220 @@
+Follow this order.
+
+1) Import the zip correctly
+
+Go to replit.com/import, choose ZIP, upload the repo zip, add any requested environment variables if Replit prompts for them, then click Import. Replit’s ZIP importer brings in your project files, dependency files, and run/build defaults, but it does not import existing secret values, database data, domains, or third-party connector setup.
+
+After import finishes, make sure these are at the workspace root:
+
+.replit
+replit.nix
+package.json
+pyproject.toml
+client/
+server/
+
+Your zip has a top-level folder. If Replit imports that folder as a nested directory, move its contents up one level before you do anything else.
+
+2) Fix the .replit port block before first publish
+
+Your current .replit has multiple [[ports]] mappings. For Autoscale publishing, Replit only supports one externally exposed port, and it must map to externalPort = 80; if you expose more than one, publishing can fail. Replit also requires the app to listen on 0.0.0.0, not localhost.
+
+Open .replit and make the [[ports]] section look like this and nothing else:
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+Leave the deployment commands as they are:
+
+build: bash replit-build.sh
+run: bash start.sh
+
+Those are valid .replit deployment settings.
+
+3) Turn on the Replit database first
+
+This repo requires DATABASE_URL at runtime for sessions and database access. Replit’s current SQL Database is available in the workspace, and all Replit apps come with a database by default; the database credentials are exposed as environment variables, including DATABASE_URL.
+
+In Replit:
+
+Open All tools
+Open Database
+Confirm the database is available
+Do not hardcode any connection string
+
+If DATABASE_URL is missing from Secrets after import, the app will not start.
+
+4) Add workspace secrets before the first run
+
+Open All tools → Secrets. Replit Secrets become environment variables in your app.
+
+Add these workspace secrets now:
+
+Required:
+
+DATABASE_URL=<should already exist from Replit Database>
+SESSION_SECRET=<long random string>
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=<strong temporary password>
+ADMIN_NAME=Jarred
+PUBLIC_CRAWL_ALLOWLIST=floridabar.org,sunbiz.org,examplelawfirm.com
+
+Optional Tracers secrets:
+
+TRACERS_API_KEY=
+TRACERS_API_BASE_URL=
+TRACERS_PERSON_SEARCH_PATH=/api/person-search
+TRACERS_HTTP_METHOD=POST
+TRACERS_API_KEY_HEADER=Authorization
+TRACERS_API_KEY_PREFIX=Bearer 
+TRACERS_TIMEOUT_SECONDS=20
+
+Recommended after you have the live URL:
+
+APP_URL=https://your-app-name.replit.app
+NODE_ENV=development
+PORT=5000
+5) Install everything in the workspace shell
+
+Open Shell and run these commands exactly:
+
+bash replit-build.sh
+npm run db:push
+
+What this does in your repo:
+
+installs Node packages
+installs the Python verifier package from pyproject.toml
+installs Playwright Chromium
+runs crawl4ai-setup
+builds the app
+then db:push creates/updates the PostgreSQL schema
+6) Start the app in the workspace
+
+Now either press Run or run:
+
+npm run dev
+
+Your server is already coded to bind to 0.0.0.0 on port 5000, which is what Replit deployment expects for web apps. Replit’s deployment troubleshooting guide specifically calls out listening on 0.0.0.0 as required.
+
+7) Create the first admin user
+
+Because the app is auth-protected, create the first admin immediately after the app starts.
+
+In the Shell, run this once:
+
+curl -X POST http://127.0.0.1:5000/api/admin/bootstrap
+
+You should get a JSON response showing created: true or updated: true.
+
+Then open the preview/login page and sign in with:
+
+email = ADMIN_EMAIL
+password = ADMIN_PASSWORD
+8) Smoke-test the new verifier before publishing
+
+After login, go to:
+
+/verification/public-info
+
+Test these flows:
+
+verify a record
+crawl an allowlisted site
+run a username check
+
+If crawling fails, the two most likely causes are:
+
+the hostname is not included in PUBLIC_CRAWL_ALLOWLIST
+Chromium/Playwright setup did not complete cleanly
+
+If you need to allow more domains, update PUBLIC_CRAWL_ALLOWLIST in Secrets and restart the app.
+
+9) Publish as an Autoscale deployment
+
+Use Publishing and choose Autoscale. Replit’s docs say Autoscale is the right fit for web apps, APIs, and services, while Static deployment is not appropriate for apps with server-side behavior.
+
+In Replit:
+
+Open All tools
+Open Publishing
+Choose Autoscale
+Click Set up your published app
+10) Add deployment secrets separately
+
+This is the step most people miss.
+
+Workspace secrets do not automatically carry over to published apps. Replit’s deployment docs say to add all production secrets in the Deployments pane, or the app can fail at startup with undefined values.
+
+In the Publishing/Deployment screen, add these deployment secrets:
+
+Required:
+
+DATABASE_URL=<copy from workspace secret if Replit did not prefill it>
+SESSION_SECRET=<new long random string for production>
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=<strong production password>
+ADMIN_NAME=Jarred
+PUBLIC_CRAWL_ALLOWLIST=floridabar.org,sunbiz.org,examplelawfirm.com
+NODE_ENV=production
+PORT=5000
+
+Optional:
+
+APP_URL=https://your-app-name.replit.app
+TRACERS_API_KEY=
+TRACERS_API_BASE_URL=
+TRACERS_PERSON_SEARCH_PATH=/api/person-search
+TRACERS_HTTP_METHOD=POST
+TRACERS_API_KEY_HEADER=Authorization
+TRACERS_API_KEY_PREFIX=Bearer 
+TRACERS_TIMEOUT_SECONDS=20
+11) Confirm the deployment commands
+
+Before clicking publish, confirm the deployment commands are:
+
+Build:
+
+bash replit-build.sh
+
+Run:
+
+bash start.sh
+
+Replit supports build/run deployment settings in .replit, and the deployment pane also lets you edit commands and secrets if needed.
+
+12) Publish and check logs
+
+Click Publish.
+
+If it fails:
+
+open the Logs tab in the deployment pane
+look for missing secrets, package install failures, or port issues
+
+Replit’s deployment docs specifically recommend checking the Logs tab for startup errors and warn that incorrect commands, missing secrets, or wrong port config are common causes of failure.
+
+13) After the first successful publish
+
+When the deployment is live:
+
+copy the https://<app-name>.replit.app URL
+set APP_URL in deployment secrets to that exact URL
+republish once
+
+Autoscale deployments can use the default replit.app URL or a custom domain later.
+
+14) Exact failure checklist if publishing still breaks
+
+Check these in this order:
+
+.replit has only one [[ports]] block mapping 5000 -> 80
+DATABASE_URL exists in both workspace and deployment
+SESSION_SECRET exists in both workspace and deployment
+ADMIN_EMAIL and ADMIN_PASSWORD exist before bootstrap
+bash replit-build.sh completed without Playwright/Crawl4AI errors
+npm run db:push completed successfully
+the app starts locally with npm run dev
+/api/admin/bootstrap returns success
+the published app is using Autoscale, not Static

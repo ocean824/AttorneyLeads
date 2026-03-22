@@ -24,6 +24,7 @@ import TwoFA from "@/pages/2fa";
 import Fallback2FA from "@/pages/2fa-fallback";
 import AccountSecurity from "@/pages/account-security";
 import Devices from "@/pages/devices";
+import PublicInfoVerifierPage from "@/pages/public-info-verifier";
 
 function Router() {
   return (
@@ -63,6 +64,9 @@ function Router() {
       </Route>
       <Route path="/billing" >
         <PrivateRoute><Billing /></PrivateRoute>
+      </Route>
+      <Route path="/verification/public-info" >
+        <PrivateRoute><PublicInfoVerifierPage /></PrivateRoute>
       </Route>
       <Route path="/admin/users" >
         <PrivateRoute><AdminPanel /></PrivateRoute>

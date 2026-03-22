@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Scale, Database, Activity, FileText, Copy, BarChart3, Users, Bot, CreditCard } from "lucide-react";
+import { Scale, Database, Activity, FileText, Copy, BarChart3, Users, Bot, CreditCard, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ export function Header() {
     { path: "/duplicates", label: "Duplicates", icon: Copy },
     { path: "/analytics", label: "Analytics", icon: BarChart3 },
     { path: "/crm", label: "CRM", icon: Users },
+    { path: "/verification/public-info", label: "Verify", icon: ShieldCheck },
     ...(me?.role === "admin" ? [{ path: "/admin/tools/agent", label: "Agent", icon: Bot }] : []),
   ];
 
