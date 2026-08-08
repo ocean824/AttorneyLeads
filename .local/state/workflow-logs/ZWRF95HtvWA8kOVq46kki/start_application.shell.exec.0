@@ -1,0 +1,215 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K⚠️ PHANTOMBUSTER_API_KEY not set - using mock data mode
+⚠️ CALENDLY_API_KEY not set - using mock data mode
+⚠️ GOOGLE_SHEETS_TOKEN not set - using mock data mode
+✓ LLM providers configured: OpenAI, Gemini
+10:15:06 PM [express] serving on port 5000
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:07.065Z","requestId":"cb2c569a-9819-46f0-93a7-c25ba7c7d681","method":"GET","path":"/","statusCode":200,"durationMs":31,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:07.393Z","requestId":"efa147e1-6454-48db-b5f3-6e12652f456b","method":"GET","path":"/@vite/client","statusCode":200,"durationMs":30,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+Browserslist: browsers data (caniuse-lite) is 17 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:07.819Z","requestId":"564a57ea-b0a7-496d-8430-b9342abeb418","method":"GET","path":"/src/main.tsx","statusCode":200,"durationMs":2,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:07.834Z","requestId":"541723fc-4c6c-4d53-a308-f90e49933bde","method":"GET","path":"/@react-refresh","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:08.622Z","requestId":"a3eb7d3b-cf09-44e3-8a80-ed74cf522277","method":"GET","path":"/@fs/home/runner/workspace/node_modules/vite/dist/client/env.mjs","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:08.623Z","requestId":"03a9efe2-ff35-4041-89ea-8fb9664ac8c7","method":"GET","path":"/src/App.tsx","statusCode":200,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:08.930Z","requestId":"4c4ceaad-3959-4808-92d1-8943e81f8372","method":"GET","path":"/src/components/auth/private-route.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.070Z","requestId":"0cd5ee49-98c8-4fa2-908a-0a87a71d29e1","method":"GET","path":"/src/lib/queryClient.ts","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.172Z","requestId":"f278b0d0-8e69-4b80-ba35-8d974d245dcf","method":"GET","path":"/src/components/ui/toaster.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.266Z","requestId":"4a9b8bf2-ca72-4a1e-831a-c32dd8973935","method":"GET","path":"/src/components/ui/tooltip.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.288Z","requestId":"d1efff9e-627f-443e-85de-77b36ed21caf","method":"GET","path":"/src/components/layout/header.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.360Z","requestId":"15ea9731-64fe-450f-9b16-c5f9610b641d","method":"GET","path":"/src/pages/login-landing.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.383Z","requestId":"b611ab32-f225-4c1b-b481-80571a3be8d7","method":"GET","path":"/src/pages/dashboard.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.454Z","requestId":"a92cc9e6-824b-4b5e-a91b-f40314ffcd47","method":"GET","path":"/src/pages/records.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.473Z","requestId":"18a64c17-4019-409d-9a98-9024969f2917","method":"GET","path":"/src/pages/jobs.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.551Z","requestId":"9fadb631-c682-4dba-83fc-d680e1f4a85d","method":"GET","path":"/src/pages/duplicates.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.572Z","requestId":"aaa71369-a4a6-4b7e-8a96-ee6b6182e312","method":"GET","path":"/src/pages/analytics.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.644Z","requestId":"d6f18e82-3398-4f35-af58-675f1b7522a8","method":"GET","path":"/src/pages/crm.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.676Z","requestId":"9cf48a81-293a-45bd-81bc-2b19da0ea05b","method":"GET","path":"/src/pages/not-found.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.792Z","requestId":"3e73597d-16ef-4f42-ba81-d2576bf17957","method":"GET","path":"/src/pages/login.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.793Z","requestId":"8bc492fa-5275-4782-a23e-be1693cc7e10","method":"GET","path":"/src/pages/admin/index.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.887Z","requestId":"d71d348d-b14e-4931-ac3a-39b826e12d54","method":"GET","path":"/src/pages/admin/calendar.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.895Z","requestId":"e0f438a4-42fa-4510-8328-8b526cde4a83","method":"GET","path":"/src/pages/agent.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.990Z","requestId":"c0aced59-f57a-4aad-9214-1c09b1d538ea","method":"GET","path":"/src/pages/billing.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:09.997Z","requestId":"00be6aac-8354-4bae-9eed-3565f5a68b47","method":"GET","path":"/src/pages/forgot.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.093Z","requestId":"7f7cbeb2-06dd-4bd2-a970-a379ea1cd657","method":"GET","path":"/src/pages/2fa.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.094Z","requestId":"c87bd8cb-e74b-4d4c-9e3c-0c56ccc3ccac","method":"GET","path":"/src/pages/reset.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.196Z","requestId":"1c681777-61b9-4db9-bba8-9f519e9425a4","method":"GET","path":"/src/pages/2fa-fallback.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.204Z","requestId":"01bfc5b6-e38a-4566-a079-083893c1853d","method":"GET","path":"/src/pages/account-security.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.300Z","requestId":"9399bf1b-3355-4251-8fb5-dfbcf3f670d7","method":"GET","path":"/src/pages/devices.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.309Z","requestId":"9e11bf74-38f6-4cd1-a34f-892f002941f1","method":"GET","path":"/src/hooks/use-toast.ts","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.405Z","requestId":"ac2bebc3-8d3d-441e-9024-34a9f67e3025","method":"GET","path":"/src/components/ui/toast.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.414Z","requestId":"5b37dc1a-7341-4e08-881b-d8ea3d07e78f","method":"GET","path":"/src/lib/utils.ts","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.513Z","requestId":"0991b1d6-f6af-42eb-aaac-0ad86acef1a2","method":"GET","path":"/src/components/ui/button.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.540Z","requestId":"894e53f3-13e3-454b-b914-b6ae82af9e66","method":"GET","path":"/src/components/ui/input.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.608Z","requestId":"7a7f5d9e-bc72-4d24-8695-12418dc30f4a","method":"GET","path":"/src/components/ui/card.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.635Z","requestId":"f8f5e7c3-1a46-440a-b55e-88894f4eb088","method":"GET","path":"/src/components/dashboard/stats-cards.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.702Z","requestId":"c1dc57f9-f658-438e-b6f9-71503febac71","method":"GET","path":"/src/components/scrape-wizard/scrape-wizard.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.738Z","requestId":"eae8e5b3-1fd4-4381-9561-bbbfa85b85e6","method":"GET","path":"/src/components/dashboard/recent-jobs-preview.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.801Z","requestId":"a81dcc7f-de72-4773-9713-e89b389216b7","method":"GET","path":"/src/components/records/records-table.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.832Z","requestId":"a3a5e624-107e-4ed2-9f33-c3d047cb0197","method":"GET","path":"/src/components/records/records-filters.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.900Z","requestId":"c927ef79-d879-460f-9a33-16b15c13e6ad","method":"GET","path":"/src/components/export/export-modal.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.927Z","requestId":"97c9109d-24a6-4084-8a42-3df4a5fb321d","method":"GET","path":"/src/components/jobs/job-card.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:10.994Z","requestId":"90fe9871-1f10-4c56-b379-4bfa4cbeca97","method":"GET","path":"/src/components/ui/select.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.030Z","requestId":"bff80bf4-b359-4d6f-98a7-7e3f3156a32e","method":"GET","path":"/src/components/ui/badge.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.088Z","requestId":"46ca6d58-7214-40d7-a2a4-38fb8369fa78","method":"GET","path":"/src/components/duplicates/duplicates-table.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.133Z","requestId":"3d2b0480-0de1-4ed6-ba9c-03d24300493f","method":"GET","path":"/src/components/ui/label.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.201Z","requestId":"0e067ea7-3df8-43e0-ab64-c54f69c85f7d","method":"GET","path":"/src/components/ui/skeleton.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.283Z","requestId":"6ed7847e-be82-4957-b4db-e1db52236462","method":"GET","path":"/src/components/ui/tabs.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.291Z","requestId":"41e8839d-0976-49d2-9e35-e64507d771f1","method":"GET","path":"/src/components/ui/dialog.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.386Z","requestId":"4813bab3-f921-42d0-a4f8-d2d85ff6dd47","method":"GET","path":"/src/components/ui/textarea.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.387Z","requestId":"ad2fad1e-d3c8-4889-82ed-c3755bb80cae","method":"GET","path":"/src/components/ui/switch.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.488Z","requestId":"d8dd3813-b7c5-455f-a48f-39e9f402f0c5","method":"GET","path":"/src/components/ui/scroll-area.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.497Z","requestId":"659416fe-1eb9-492b-96c3-679fcf1170d3","method":"GET","path":"/src/components/agent/appointment-booking-dialog.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.592Z","requestId":"2ea71824-dedc-45fb-83cc-3ac5ba9e9de4","method":"GET","path":"/src/components/ui/checkbox.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.645Z","requestId":"6874f682-f55d-4d5f-aad4-a6ca4f62483b","method":"GET","path":"/src/components/ui/progress.tsx","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.691Z","requestId":"e5eba57c-a70e-4581-bee9-ffa06121a473","method":"GET","path":"/src/components/ui/radio-group.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.740Z","requestId":"3d0de277-d72c-4abf-ac19-54ddea29435f","method":"GET","path":"/@fs/home/runner/workspace/shared/schema.ts","statusCode":304,"durationMs":0,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.794Z","requestId":"74212a81-084f-4120-b44b-a3e285a580e3","method":"GET","path":"/src/components/ui/table.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:11.835Z","requestId":"b9a700ad-a7e3-4cf0-a6fd-2d507e9f816d","method":"GET","path":"/src/components/duplicates/duplicate-review-modal.tsx","statusCode":304,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:12.129Z","requestId":"bb76b095-3959-4864-a9c7-1759ae0921c2","method":"GET","path":"/api/auth/whoami","statusCode":401,"durationMs":2,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:12.229Z","requestId":"64571f6f-5665-4547-9ca9-eb9a5a6c4997","method":"GET","path":"/api/auth/whoami","statusCode":401,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:15:26 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=r49jwzDQGjj8GVOniILI6, /src/index.css?v=r49jwzDQGjj8GVOniILI6[22m
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:26.273Z","requestId":"5f3da361-8f8d-4dc0-b26d-8d74fc07f9f5","method":"GET","path":"/src/App.tsx","statusCode":200,"durationMs":134,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:15:27 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx?v=r49jwzDQGjj8GVOniILI6, /src/index.css?v=r49jwzDQGjj8GVOniILI6[22m [33m(x2)[39m
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:28.090Z","requestId":"739ac8ad-59af-4e53-9ab0-b68c3d8424f7","method":"GET","path":"/src/App.tsx","statusCode":200,"durationMs":117,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:28.284Z","requestId":"14705e98-e1f1-446a-809b-0ae108ece641","method":"GET","path":"/src/pages/public-info-verifier.tsx","statusCode":200,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:15:40 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/layout/header.tsx, /src/index.css?v=r49jwzDQGjj8GVOniILI6[22m
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:40.411Z","requestId":"a8a08d30-f4e7-4664-aa22-ff77f546693f","method":"GET","path":"/src/components/layout/header.tsx","statusCode":200,"durationMs":80,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:40.907Z","requestId":"c5433e3b-610f-4a64-8080-9098dd86d558","method":"GET","path":"/api/auth/whoami","statusCode":401,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m10:15:42 PM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/layout/header.tsx, /src/index.css?v=r49jwzDQGjj8GVOniILI6[22m [33m(x2)[39m
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:42.697Z","requestId":"3f0f337d-709e-4c25-a610-587f5a2f18ca","method":"GET","path":"/src/components/layout/header.tsx","statusCode":200,"durationMs":67,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"info","message":"http_request","timestamp":"2026-03-22T22:15:43.898Z","requestId":"e7dcd297-df97-4ada-a421-36f97712bf61","method":"GET","path":"/api/auth/whoami","statusCode":401,"durationMs":1,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}

@@ -1,0 +1,15 @@
+[1G[0K⠙[1G[0K
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K⠙[1G[0K⚠️ PHANTOMBUSTER_API_KEY not set - using mock data mode
+⚠️ CALENDLY_API_KEY not set - using mock data mode
+⚠️ GOOGLE_SHEETS_TOKEN not set - using mock data mode
+✓ LLM providers configured: OpenAI, Gemini
+4:39:35 PM [express] serving on port 5000
+{"level":"info","message":"http_request","timestamp":"2026-05-06T16:39:36.558Z","requestId":"151e26b4-c233-46a5-bae7-f2ca760c8c33","method":"GET","path":"/","statusCode":200,"durationMs":39,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"}
+Browserslist: browsers data (caniuse-lite) is 19 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
